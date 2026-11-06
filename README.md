@@ -22,7 +22,8 @@
 | 数据（4G/5G 上网） | ✅ 短暂可用 | WDS 拨号拿到真实 IP，ping/DNS/HTTP/HTTPS 全通 |
 | **基带稳定性** | ❌ **未解决** | 射频起来后 30–45 秒必崩，见下 |
 | 短信 / 通话 | ⏸️ 未做 | 测试卡不支持，按需求跳过 |
-| 硬件视频/GPU 加速 | ❌ 未做 | 目前软件渲染（`WLR_RENDERER=pixman`） |
+| GPU | ✅ 可用 | Adreno 740 / freedreno，`/dev/dri/renderD128`，phoc 走 GLES（实测合成器持有 6 个 render 节点 fd，devfreq 220–680 MHz） |
+| 硬件视频解码 | ⏸️ 未验证 | Venus 没试过 |
 | 快充 | ❌ 未做 | 根因已定位（DTS 删 `usb-role-switch` 导致 UCSI EPROBE_DEFER → 900mA），修了会堵死 pmic-glink |
 
 ### 唯一的硬骨头：基带 PLL 断言
