@@ -94,10 +94,17 @@ evidence/                         实验日志（正面/反面都留着）
 
 ## 关于固件
 
-**本仓库不包含任何高通/魅族专有固件**（modem 固件、RF 校准卡、`fsg`/`fsc` 等）。
-那些是厂商版权物，且内含设备唯一校准数据，公开分发既有法律风险也会泄露设备身份。
+固件放在**独立仓库**，避免万一有版权投诉时连累源码：
+**https://github.com/leluo123/m2468-firmware**
 
-需要的部分请从**你自己的机器**上导出：`scripts/extract/` 下是解包工具，
+里面是这台机器的 modem 固件（`MPSS.DE.3.0.c3-00008-KAILUA_GEN_PACK-2`）。
+发布前已做精确扫描（ASCII / UTF-16LE / UTF-16BE 三种编码）：
+**无 IMEI、无设备序列号、无手机号、无 MAC、无 WiFi SSID**。
+
+**本仓库和固件仓库都不含**这些设备唯一数据：`modemst1` / `modemst2` / `fsg` / `fsc`、
+QCN 备份、EFS 快照 —— 那些才是装 IMEI 和射频校准的地方，属于隐私，永不发布。
+
+需要自己提取的话，`scripts/extract/` 下是解包工具，
 基带固件在 `modem_a`/`modem_b` 分区（FAT16），RF 卡在 `mcfg/configs/mcfg_ddr/rf/`。
 
 ## 免责
