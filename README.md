@@ -77,6 +77,7 @@ userspace/
 scripts/
   serial/                         USB 串口驱动脚本，含大脚本 base64 分块传输
   extract/                        vendor_boot 解包（v4 头 + LZ4 legacy）
+  re/                             逆向工具：fdtparse、dtbo 解析、QCN 提取、modem 镜像分析
 docs/                             36 篇现场记录
 evidence/                         实验日志，失败的也留着
 CREDITS.md                        这个项目站在谁的肩膀上
