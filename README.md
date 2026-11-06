@@ -1,10 +1,18 @@
 # 魅族 21 Note（m2468）跑 Linux
 
-把魅族 21 Note 从 Android 换成 mainline Linux（7.3.0 内核 + Debian rootfs + phosh）。
+把魅族 21 Note 从 Android 换成 mainline Linux（7.3.0 内核 + postmarketOS + phosh）。
 用的是 SM8550，也就是骁龙 8 Gen 2。
 
 这个仓库是我们这段时间的全部痕迹：改过的内核代码、用户态脚本、实验证据，还有踩过的坑。
 不图好看，图的是下一个做同款机型的人别再把我们踩过的坑重踩一遍。
+
+相关仓库：
+
+- **本仓库**：内核改动、踩坑记录、实验证据
+- [m2468-uefi](https://github.com/leluo123/m2468-uefi)：UEFI 引导（Project Mu / Mu-Silicium 设备包）
+- [m2468-system](https://github.com/leluo123/m2468-system)：systemd 单元、udev 规则、基带 daemon
+- [m2468-rootfs](https://github.com/leluo123/m2468-rootfs)：postmarketOS 包清单
+- [m2468-firmware](https://github.com/leluo123/m2468-firmware)：基带固件
 
 ## 现在能用到什么程度
 
