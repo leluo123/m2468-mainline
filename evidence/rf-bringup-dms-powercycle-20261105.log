@@ -1,0 +1,11 @@
+# RF bring-up recipe that WORKS on m2468 — 2026-11-05
+# After the modem is running and SIM is ready, a DMS power cycle re-initialises the RF:
+#   qmicli -d qrtr://0 --dms-set-operating-mode=low-power
+#   sleep 8
+#   qmicli -d qrtr://0 --dms-set-operating-mode=online
+# Observed right after (radio came up, PS attached):
+  Registration: registered / PS: attached / [0]: 5gnr / MCC 460 MNC 0 / CMCC
+# Then ~2.5 minutes later the modem died again with the PLL assertion:
+[ 1618.731018] qcom_q6v5_pas 4080000.remoteproc: fatal error received: mcpm_resrc_modem_pll.c:1213:Assertion clk_mpss_req_status == CLOCK_SUCCESS failed
+# crash count now:
+1

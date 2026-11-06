@@ -1,0 +1,2012 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Device Tree Source for Meizu 20 (m2381, SM8550/Kalama)
+ * Copyright (c) 2026 Meizu Technologies
+ *
+ * factory-first 重建 v3（2026-10-04，DT 原厂化会话③）——白名单制从头重建：
+ * 本文件不继承任何 inf（Meizu 20 Infinity）派生内容；每节点/属性持证上岗
+ * （原厂出处 = corpus 三源之一，或主线 binding 必然性），v2（f42a93ef）降级为
+ * 对照基线。逐行出处与分类 = meizu20-m1/dts/factory-first/LEDGER.md（台账，
+ * 常驻维护——改此文件必须同步改台账）；前置审计 =
+ * meizu20-m1/dts/factory-first/reports/AUDIT-T4-20261004.md（音频分片/RPMH
+ * 轨族/reserved-memory 三对账，本文件的修正值全部出自该审计）。
+ *
+ * 原厂真值源（corpus，SHA256 固化在 corpus/SHA256SUMS）：
+ *   base   = vendor_boot dtb 段 base DTB（corpus/vboot_a.fdt0.dts）
+ *   entry9 = dtbo entry9 overlay（本机生效条目，board-id 0x1 0xf）
+ *   RT     = runtime FDT（ABL 加工后地面真值，deepseek-round2-materials/）
+ * 缩写：base/entry9/RT 同上；主线 = linux-mobile-ports 树 binding/dtsi 惯例。
+ */
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) 2025, Teguh Sobirin.
+ */
+
+/dts-v1/;
+#include <dt-bindings/leds/common.h>
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include "sm8550.dtsi"
+/* #include "pm8010.dtsi" -- PM8010 (0xC/0xD) 在 m2468 上不响应 SPMI：
+ *   pmic-spmi 0-0d: probe with driver pmic-spmi failed with error -5
+ * 原厂 dts 里这 14 个 regulator 全部无人引用，故整棵移除。 */
+#include "pm8550.dtsi"
+#include "pm8550b.dtsi"
+#define PMK8550VE_SID 5
+#include "pm8550ve.dtsi"
+#include "pm8550vs.dtsi"
+#include "pmk8550.dtsi"
+
+/* 板级 rmtfs 重建（见 reserved-memory 注）；主线占位地址不用 */
+/delete-node/ &rmtfs_mem;
+
+/* sm8550.dtsi ships a placeholder memory node (reg size 0) and expects "the
+ * bootloader to fill in the size".  We boot with a bare arm64 jump, so nobody
+ * fills it - and with no /memory at all memblock is empty and paging_init()
+ * panics with "Failed to allocate page table page".  The ranges below are
+ * copied verbatim from this device's own bootloader-filled tree (RT):
+ * the stock kernel booted with exactly these values, so they are the
+ * platform's authoritative "OS memory".
+ * 【D：裸跳需要——UEFI 链不传 memory，此表=唯一内存事实源（RT 同源）】 */
+/delete-node/ &{/memory@a0000000};
+
+/ {
+	chassis-type = "handset";
+
+	model = "Meizu 21 Note (m2468) 7.3";
+	compatible = "meizu,21note", "qcom,sm8550";
+
+	aliases {
+		/* 【A：RT aliases serial0 = geni-debug-uart@a9c000（=主线 uart7，
+		 * stock debug console：bootargs console=ttyMSM0 + stdout-path 同指）】
+		 * serial1 = BT 惯例命名（主线必然性：hci_qca 走 serial 别名） */
+		serial0 = &uart7;
+		serial1 = &uart14;
+	};
+
+	chosen {
+		/*
+		 * No stdout-path on purpose.  The kernel console must become
+		 * tty0/fbcon (fed by our glue's sysfb_primary_display fill + the
+		 * earlycon=efifb that is already baked into CONFIG_CMDLINE); naming a
+		 * serial here would make it the preferred console and the framebuffer
+		 * console would stay disabled.
+		 * 【D：UEFI 链控制台形态（R23bi 定案）】
+		 */
+	};
+
+	/* 【A：RT vsys-regulator "audio_vsys" fixed always-on/boot-on——CS35L45
+	 * VP 域代表 VSYS；主线 cs35l45 binding 需要 vdd-batt ⇒ 同构重建】 */
+	audio_vsys: regulator-audio-vsys {
+		compatible = "regulator-fixed";
+		regulator-name = "audio_vsys";
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	/* 【A：RT display_gpio_regulator@0 "display_panel_vddi" = pm8550 gpio11
+	 * 门控 1.8V boot-on enable-active-high ramp 0xe9=233us，pinctrl
+	 * power-source 1 output-high。r6/r7 活体实测轨值 1.8V 一致】 */
+	panel_vddio: regulator-panel-vddio {
+		compatible = "regulator-fixed";
+		regulator-name = "display_panel_vddio";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		gpio = <&pm8550_gpios 11 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		pinctrl-0 = <&display_panel_vddio_default>;
+		pinctrl-names = "default";
+		startup-delay-us = <233>;
+		regulator-boot-on;
+	};
+
+	/* 【A：RT display_gpio_regulator@1 "display_panel_vddr" = pm8550b gpio5
+	 * 门控 1.8V，形态同 vddio。实测 1.2V vs 声明 1.8V：电压值=stock 声明，
+	 * 不改物理轨（PMIC 固件管），入台账备查】 */
+	panel_vdd: regulator-panel-vdd {
+		compatible = "regulator-fixed";
+		regulator-name = "display_panel_vdd";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		gpio = <&pm8550b_gpios 5 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		pinctrl-0 = <&display_panel_vdd_default>;
+		pinctrl-names = "default";
+		startup-delay-us = <233>;
+		regulator-boot-on;
+	};
+
+	/* 【A：RT display_gpio_regulator@2 "display_panel_vci" = pm8550 gpio1
+	 * 门控，声明 1.8V，pinctrl power-source 0（另两轨为 1）。实测 3.0V：
+	 * 同上，设备轮复测门后轨】 */
+	panel_vci: regulator-panel-vci {
+		compatible = "regulator-fixed";
+		regulator-name = "display_panel_vci";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		gpio = <&pm8550_gpios 1 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		pinctrl-0 = <&display_panel_vci_default>;
+		pinctrl-names = "default";
+		startup-delay-us = <233>;
+		regulator-boot-on;
+	};
+
+	/* 【A：RT gpio-regulator@4 "audio_va_micbias" = **TLMM gpio0** 门控
+	 * 1.8V（gpio=<tlmm 0>，注意与显示三轨的 PMIC GPIO 域不同）、vin=L15B、
+	 * ramp 0x87=135us、pinctrl audio_micbias_default（gpio/output-high/
+	 * bias-disable/ds8）；VA macro vdd-micb 消费（AUDIT-T4 §1.4）。
+	 * 主线 va-macro binding optional——音频暂停档无消费者不使能，持证搬入】 */
+	audio_va_micbias: regulator-audio-va-micbias {
+		compatible = "regulator-fixed";
+		regulator-name = "audio_va_micbias";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		vin-supply = <&vreg_l15b_1p8>;
+		gpio = <&tlmm 0 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		pinctrl-0 = <&audio_va_micbias_default>;
+		pinctrl-names = "default";
+		startup-delay-us = <135>;
+		regulator-boot-on;
+	};
+
+	/* 【A：RT wlan/bt enable = gpio80/81 pinctrl；主线 wcn7850-pmu 形态】 */
+	wcn7850-pmu {
+		compatible = "qcom,wcn7850-pmu";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&wlan_en>, <&bt_default>, <&pmk8550_sleep_clk>;
+
+		wlan-enable-gpios = <&tlmm 80 GPIO_ACTIVE_HIGH>;
+		bt-enable-gpios = <&tlmm 81 GPIO_ACTIVE_HIGH>;
+
+		/* 轨族 = 主线 wcn7850 binding 必需六轨；PMU LDO 输出族 = 驱动子节点
+		 * 惯例（主线 sm8550 全系板同形）。父轨接 v2 值族（实跑 20+ 天，
+		 * AUDIT-T4 §2 逐轨对 RT 无差）【A/B：主线必然性 + 实跑确认】 */
+		vdd-supply = <&vreg_s5g_0p8>;
+		vddio-supply = <&vreg_l15b_1p8>;
+		vddaon-supply = <&vreg_s2g_0p8>;
+		vdddig-supply = <&vreg_s4e_0p95>;
+		vddrfa1p2-supply = <&vreg_s4g_1p3>;
+		vddrfa1p8-supply = <&vreg_s6g_1p8>;
+
+		regulators {
+			vreg_pmu_rfa_cmn: ldo0 {
+				regulator-name = "vreg_pmu_rfa_cmn";
+			};
+
+			vreg_pmu_aon_0p59: ldo1 {
+				regulator-name = "vreg_pmu_aon_0p59";
+			};
+
+			vreg_pmu_wlcx_0p8: ldo2 {
+				regulator-name = "vreg_pmu_wlcx_0p8";
+			};
+
+			vreg_pmu_wlmx_0p85: ldo3 {
+				regulator-name = "vreg_pmu_wlmx_0p85";
+			};
+
+			vreg_pmu_btcmx_0p85: ldo4 {
+				regulator-name = "vreg_pmu_btcmx_0p85";
+			};
+
+			vreg_pmu_rfa_0p8: ldo5 {
+				regulator-name = "vreg_pmu_rfa_0p8";
+			};
+
+			vreg_pmu_rfa_1p2: ldo6 {
+				regulator-name = "vreg_pmu_rfa_1p2";
+			};
+
+			vreg_pmu_rfa_1p8: ldo7 {
+				regulator-name = "vreg_pmu_rfa_1p8";
+			};
+
+			vreg_pmu_pcie_0p9: ldo8 {
+				regulator-name = "vreg_pmu_pcie_0p9";
+			};
+
+			vreg_pmu_pcie_1p8: ldo9 {
+				regulator-name = "vreg_pmu_pcie_1p8";
+			};
+		};
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		/* 【A：RT key_vol_up_default = pm8550 gpio6 input-enable pull-up】 */
+		pinctrl-0 = <&volume_up_n>;
+		pinctrl-names = "default";
+
+		key-volume-up {
+			label = "Volume Up";
+			debounce-interval = <15>;
+			gpios = <&pm8550_gpios 6 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_VOLUMEUP>;
+			linux,can-disable;
+			wakeup-source;
+		};
+	};
+
+	pmic-glink {
+		compatible = "meizu,meizu-20-pmic-glink",
+			     "qcom,sm8550-pmic-glink", "qcom,pmic-glink";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		/* orientation gpio = 主线 pmic-glink binding 必需（板级走线）；
+		 * 【D：v2 沿袭值，RT/entry 无对应声明（下游 charger 框架），
+		 * 20+ 天实跑 orientation 正确】 */
+		orientation-gpios = <&tlmm 11 GPIO_ACTIVE_HIGH>;
+
+		/*
+		 * The board has no wireless charging hardware: the firmware
+		 * never answers the wireless supply property requests, so
+		 * skip those power supplies entirely.
+		 * 【D：功耗战役产物（wls-tx 幻影风暴根除，9-30）；stock 树无此概念】
+		 */
+		qcom,no-wireless-charging;
+
+		connector@0 {
+			compatible = "usb-c-connector";
+			reg = <0>;
+			power-role = "dual";
+			data-role = "dual";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+
+					pmic_glink_hs_in: endpoint {
+						remote-endpoint = <&usb_1_dwc3_hs>;
+					};
+				};
+
+				port@1 {
+					reg = <1>;
+
+					pmic_glink_ss_in: endpoint {
+						remote-endpoint = <&redriver_ss_out>;
+					};
+				};
+
+				/*
+				 * port@2 (SBU/aux) removed 【D：fsa4480 摘除，10-07】：
+				 * 板上未焊 fsa4480（i2cdetect 0x42 干净 + flyme 取证日
+				 * 四重证据），节点在 -> 驱动 probe -ENODEV ->
+				 * pmic_glink_altmode EPROBE_DEFER -> typec port 永不注册。
+				 * SBU 无 mux 路由 = stock 同形态（typec 栈全活无 fsa4480）。
+				 */
+			};
+		};
+	};
+
+	/* vph_pwr = RPMH 供电源头（主线必然性：regulators 父轨）【A：主线惯例】 */
+	vph_pwr: regulator-vph-pwr {
+		compatible = "regulator-fixed";
+		regulator-name = "vph_pwr";
+		regulator-min-microvolt = <3700000>;
+		regulator-max-microvolt = <3700000>;
+
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	reserved-memory {
+		/*
+		 * 板级补充项（主线 sm8550.dtsi 自带表与 base 同源，AUDIT-T4 §3
+		 * 全表对账）：chipinfo/llcc_lpi = base 有而主线缺；hwfence-shbuf
+		 * 主线 0x279000 < base 0x2dd000；adspslpi = 固件合约面，保持主线值
+		 * （0x6080000 上机实证致死，见下方节点注）；rmtfs/splash/ramoops =
+		 * 我方实跑锚/战役产物；adsp_rpc_remote_heap = base 同尺寸 12MB。
+		 */
+		/* 【D：pstore 取证通道（base 无）。原址 0xa5100000 落在启动链 Display
+		 * Demura 区（Mu 内存图 0xA2A80000+0x2B00000，ABL splash/demura 每 boot
+		 * 覆写）⇒ 六死零现场；搬 0xA8000000 = Mu「Kernel」Reserv 洞（我方链无
+		 * 人写，PIL 同款「DT 节点 ⊂ Mu Reserv」先例），2026-10-08 pm_test 轮。】 */
+		ramoops@a8000000 {
+			compatible = "ramoops";
+			reg = <0 0xa8000000 0 0x200000>;
+			console-size = <0x7d800>;
+		};
+
+		/* 【A：base chipinfo_region@81cf4000 0x1000 no-map；主线缺此项】 */
+		chipinfo_mem: chipinfo-region@81cf4000 {
+			reg = <0 0x81cf4000 0 0x1000>;
+			no-map;
+		};
+
+		/* 【A：base hwfence-shmem@e6440000 0x2dd000（主线 dtsi 仅 0x279000）】 */
+		hwfence_shbuf: hwfence-shbuf-region@e6440000 {
+			reg = <0 0xe6440000 0 0x2dd000>;
+			no-map;
+		};
+
+		/* 【A：base llcc_lpi_region@ff800000 0x600000；主线缺此项】 */
+		llcc_lpi_mem: llcc_lpi_region@ff800000 {
+			reg = <0 0xff800000 0 0x600000>;
+			no-map;
+		};
+
+		/* 【D：主线必然性（rmtfs-mem 驱动），板级选址实跑 20+ 天；
+		 * base 无节点（Android 走用户态 rmtfsd+不同机制）】 */
+		rmtfs_mem: rmtfs-region@e7900000 {
+			compatible = "qcom,rmtfs-mem";
+			reg = <0x0 0xe7900000 0x0 0x280000>;
+			no-map;
+
+			qcom,client-id = <1>;
+			qcom,vmid = <QCOM_SCM_VMID_MSS_MSA>;
+		};
+
+		/* 【D：UEFI simplefb/DPU 链显示缓冲（战役产物）；RT splash 区同址】 */
+		splash_region: splash-region@b8000000 {
+			reg = <0x0 0xb8000000 0x0 0x2b00000>;
+			iommu-addresses = <&mdss 0x0 0xb8000000 0x0 0x2b00000>;
+			no-map;
+		};
+
+		/*
+		 * adspslpi：v3 首上机（2026-10-04）实证 **0x6080000（base 值）
+		 * 致死**——remoteproc_adsp memory-region = adspslpi_mem（主线 pas
+		 * 把此区交给 meizu 12.6 DSP fw），fw 对区尺寸有硬合约：96.5MB 下
+		 * DSP 侧初始化卡死 ⇒ qrtr 零服务注册 ⇒ fastrpc/传感器链全灭。
+		 * 回退主线 dtsi 值 0x4080000（r19 传感器全绿/A3 批 20+ 天实跑值）。
+		 * **教训入册**：remoteproc memory-region = 固件合约面，factory-first
+		 * 不适用于此（base 的 Android 下游 fw 布局与主线 pas 载入不同栈）。
+		 */
+		adspslpi_mem: adspslpi-region@9ea00000 {
+			reg = <0 0x9ea00000 0 0x4080000>;
+			no-map;
+		};
+
+		/*
+		 * 【A：base adsp_heap_region 同尺寸 reusable 池 0xc00000；
+		 * stock 把 ADSP static-PD (audiopd) 堆交给 {LPASS 0x16,
+		 * ADSP_HEAP 0x25}——fastrpc 节点引用本池（见 &fastrpc）】
+		 */
+		adsp_rpc_remote_heap_mem: adsp-rpc-remote-heap {
+			compatible = "shared-dma-pool";
+			alloc-ranges = <0x0 0x80000000 0x0 0x80000000>;
+			reusable;
+			alignment = <0x0 0x400000>;
+			size = <0x0 0xc00000>;
+		};
+	};
+
+	/* 震动（haptics）桩【v3 白名单判决已由 r55 设备日 mini 轮取代：实体节点
+	 * 已落地 &i2c_hub_5/haptics@5a（见上方 D 注），本桩只留判源】：
+	 * stock FDT haptic_hv@5A @ qupv3_hub_i2c5(994000)、compatible
+	 * "awinic,haptic_hv"（aw869x_* 属性族：irq=tlmm99 / reset=tlmm109 /
+	 * motor_trig2=tlmm167 / bst_vol 0x2134 / f0_pre 0x6a4 / tset 0x12）；
+	 * H3 flyme 实测 3-005a haptic_hv + leds aw_vibrator（leds-class 私有
+	 * 驱动形态）；stock FDT swr-haptics-unsupported=<1> = flyme 自标 SWR
+	 * 路线出局，qcom,hv-haptics@f000 + swr_haptics 双节点 = 高通框架
+	 * 模板残留（v3 出局判决与实测一致）。
+	 * 路线（r57 拍板 = B 落地）：自写 aw8697.c（input FF_RUMBLE ff-memless，
+	 * compatible "awinic,aw8697"，见 D 注）；aw86927 桩时代已谢幕。*/
+
+	/* 相机注释桩【v3 白名单判决：不写入实体节点（plan §2.1 T4「相机注释桩」，
+	 * camss probe 无传感器=无用暴露面，与 dp0 同理禁用）】
+	 * m2381 四摄全三星（entry9 cam-sensor0-3/eeprom/pm8008i/j 在档）：
+	 *   rear  wide   S5KGN5SP03  50MP  csiphy3 cci1 (OIS + AF)
+	 *   rear  ultra  S5K3P9SX    16MP  csiphy2 cci0 (AF)
+	 *   rear  depth  S5K5E9YX04  5MP   csiphy1 cci0
+	 *   front        S5KGD2SP03  32MP  csiphy4 cci1
+	 * Camera rails = pm8008i/pm8008j（RT ldokX/ldolX 轨族 75 轨表在档，
+	 * AUDIT-T4 §2；相机轮按 entry9 重建）。
+	 *
+	 * 【相机第 6 轮 R1（2026-10-06）：平台开放——camss + cci0/1 + pm8008 双颗。
+	 * 传感器节点不落：stock camx 的 i2c 地址不在 DT（overlay.9 cam-sensor*
+	 * 已逐属性核实），唯一出路 = 设备日 CCI 总线扫描定地址（四星一次拿齐）。
+	 * 扫描轮引导已撤（2026-10-07 空转耗电清剿第一件）：全 LDO 回
+	 * 「有消费者才上电」，无消费者轨不再强制带电；supply-only 驱动
+	 * 本体保留（相机档归属留 7.3 rebase 车不动）。全表依据 = stock
+	 * merged entry9
+	 * runtime FDT（factory-first/corpus/merged.entry9.dts）：
+	 *   pm8008i@ i2c_hub_2(988000) / pm8008j@ i2c_hub_3(98c000)，reg 0x8
+	 *   （0x9 = regulators 页，主线 qcom-pm8008 probe 自 claim addr+1；
+	 *    FP6 同款单节点形态）
+	 *   i: l1l2←S4G l3l4←BOB2 l5←S6G l6←S6G l7←BOB2
+	 *   j: l1l2←S4G l3l4←BOB2 l5←S6G l6←BOB2 l7←BOB1
+	 *   LDO RT 值：i l1=1.056 l2=0.92 l3=l4=2.8 l5=l6=1.8 l7=2.2
+	 *              j l1=1.2 l2=1.056 l3=l4=2.8 l5=1.8 l6=2.8 l7=3.1-3.3
+	 *   四星供电（传感器轮落节点用）：
+	 *     GN5(csiphy3,cci1) VIO=L5I VDIG=L2I VANA=L7I VAF=L7J
+	 *     3P9(csiphy2,cci0) VIO=L5J VDIG=L2J VANA=L4J AF=L3J
+	 *     5E9(csiphy1,cci0) VIO=L6I VDIG=L1J VANA=L4I
+	 *     GD2(csiphy4,cci1) VIO=L5J VDIG=L1I VANA=L3I
+	 *   MCLK/RESET：GN5 MCLK2=tlmm102/RST=118；3P9 MCLK1=101/RST=117
+	 *     （其余同簇，落节点时按 overlay.9 逐属性过）】 */
+
+	sound {
+		compatible = "meizu,meizu-20-sndcard",
+			     "qcom,sm8550-sndcard", "qcom,sm8450-sndcard";
+		pinctrl-0 = <&i2s1_default>, <&dmic01_default>, <&dmic23_default>;
+		pinctrl-names = "default";
+
+		model = "MEIZU20";
+		/* 【T4(2026-10-04)：WCD/SWR 链下卡变体 = stock flyme 音频拓扑对齐
+		 * （stock = wcd 本体 disabled + 无 soundwire 节点 + SEC-MI2S×
+		 * CS35L45 出声，vendor 已验证路径）。card -110 根因 = wcd938x sdw
+		 * slave init 不完（swr 命令链死）阻断卡实例化（r48c 实锤
+		 * "failed to instantiate card -110"）。本变体仅留 SEC-MI2S 一条
+		 * 链验「宏/DSP/MI2S/CS35L45 出声」，WCD 链由 T3 变体带回
+		 * （micbias 2.75V 同 boot）。恢复法 = revert T4 commit。
+		 * audio-routing 全表 WCD 相关，随链一并挂起。】
+		 *
+		 * audio-routing = "IN1_HPHL", "HPHL_OUT",
+		 *		"IN2_HPHR", "HPHR_OUT",
+		 *		"AMIC1", "MIC BIAS1",
+		 *		"AMIC2", "MIC BIAS2",
+		 *		"AMIC3", "MIC BIAS3",
+		 *		"AMIC4", "MIC BIAS3",
+		 *		"AMIC5", "MIC BIAS4",
+		 *		"TX SWR_INPUT0", "ADC1_OUTPUT",
+		 *		"TX SWR_INPUT1", "ADC2_OUTPUT",
+		 *		"TX SWR_INPUT0", "ADC3_OUTPUT",
+		 *		"TX SWR_INPUT1", "ADC4_OUTPUT";
+		 * wcd-playback-dai-link {
+		 *	link-name = "WCD Playback";
+		 *	cpu {
+		 *		sound-dai = <&q6apmbedai RX_CODEC_DMA_RX_0>;
+		 *	};
+		 *	codec {
+		 *		sound-dai = <&wcd938x 0>, <&swr1 0>, <&lpass_rxmacro 0>;
+		 *	};
+		 *	platform {
+		 *		sound-dai = <&q6apm>;
+		 *	};
+		 * };
+		 *
+		 * wcd-capture-dai-link {
+		 *	link-name = "WCD Capture";
+		 *	cpu {
+		 *		sound-dai = <&q6apmbedai TX_CODEC_DMA_TX_3>;
+		 *	};
+		 *	codec {
+		 *		sound-dai = <&wcd938x 1>, <&swr2 0>, <&lpass_txmacro 0>;
+		 *	};
+		 *	platform {
+		 *		sound-dai = <&q6apm>;
+		 *	};
+		 * };
+		 */
+
+		secondary-i2s-dai-link {
+			link-name = "Secondary MI2S Playback";
+
+			cpu {
+				sound-dai = <&q6apmbedai SECONDARY_MI2S_RX>;
+			};
+
+			platform {
+				sound-dai = <&q6apm>;
+			};
+
+			codec {
+				sound-dai = <&cs35l45_rcv>, <&cs35l45_spk>;
+			};
+		};
+
+		/* 【录音轮 A0(2026-10-06)：VA 宏 DMIC capture——stock flyme 录音 =
+		 * SoC PDM 数字麦（S4-RECORDING-RECON 定稿，WCD 零关系），节点照抄
+		 * HDK 同构模板 sm8550-hdk.dts:266。cpu 备选 = VA_CODEC_DMA_TX_0
+		 * （AFE 协商失败换它）；DMIC0–3 ↔ lpi gpio6/7、8/9 物理映射有模糊
+		 * 性，上机逐值对拍定案（recon §7-3）。】 */
+		va-dai-link {
+			link-name = "VA Capture";
+
+			cpu {
+				sound-dai = <&q6apmbedai TX_CODEC_DMA_TX_3>;
+			};
+
+			codec {
+				sound-dai = <&lpass_vamacro 0>;
+			};
+
+			platform {
+				sound-dai = <&q6apm>;
+			};
+		};
+
+		/*
+		 * No displayport-0-dai-link: mdss_dp0 is disabled on m2381.
+		 * A dai-link referencing a disabled codec leaves that ASoC
+		 * component permanently absent, and the sm8550-sndcard machine
+		 * driver silently defers forever = no sound card at all.
+		 * 【D：音频暂停档运行栈不重写（plan §2.4）；拓扑 = sheng 同构实证
+		 * （R4 对拍）+ 20+ 天基线。stock 拓扑差异（wcd disabled、VA DMIC、
+		 * swr 端口族）= AUDIT-T4 §1 入册，音频复燃判读必读】 */
+	};
+
+	/* 【A：RT wcd938x-codec 供电面：buck/rxtx/vddio 三轨全 = 0x2f4 = L15B
+	 * 1.8V、mic-bias = 0x2f7 = BOB1（AUDIT-T4 §1.2 轨身份解案）；主线形态
+	 * 持证重建。stock 本体 disabled（无 3.5mm，mic 走 VA DMIC）——主线
+	 * wcd938x = SWR attach/耳机路径必需。
+	 * 【T4(2026-10-04)：本变体对齐 stock disabled——sdw slave init 不完
+	 * 会以 component -110 阻断卡实例化（r48c 实锤）；T3 变体恢复。】 */
+	wcd938x: audio-codec {
+		compatible = "qcom,wcd9385-codec";
+		status = "disabled";
+		pinctrl-names = "default";
+		pinctrl-0 = <&wcd_default>;
+
+		/* 【A：RT cdc-micbias1..4-mv 全 0x708=1800mV】 */
+		qcom,micbias1-microvolt = <1800000>;
+		qcom,micbias2-microvolt = <1800000>;
+		qcom,micbias3-microvolt = <1800000>;
+		qcom,micbias4-microvolt = <1800000>;
+		qcom,mbhc-buttons-vthreshold-microvolt = <75000 150000 237000 500000 500000 500000 500000 500000>;
+		qcom,mbhc-headset-vthreshold-microvolt = <1700000>;
+		qcom,mbhc-headphone-vthreshold-microvolt = <50000>;
+		qcom,rx-device = <&wcd_rx>;
+		qcom,tx-device = <&wcd_tx>;
+
+		/* 【A：RT wcd938x_reset_active/sleep = gpio108 ds16；stock cs35l45
+		 * RCV reset 同线（各自节点声明，靠框架规避双持——主线由本节点
+		 * 独占持有，wcd probe 先行复位，RCV 随之出复位）】 */
+		reset-gpios = <&tlmm 108 GPIO_ACTIVE_LOW>;
+
+		vdd-buck-supply = <&vreg_l15b_1p8>;
+		vdd-rxtx-supply = <&vreg_l15b_1p8>;
+		vdd-io-supply = <&vreg_l15b_1p8>;
+		vdd-mic-bias-supply = <&vreg_bob1>;
+
+		#sound-dai-cells = <1>;
+	};
+
+	/* 【A：RT memory 与本表同源】 */
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x00 0x80000000 0x00 0xe00000>,
+		      <0x00 0x811d0000 0x00 0x56e30000>,
+		      <0x00 0xd8140000 0x00 0x20000>,
+		      <0x00 0xd8800000 0x00 0x0>,
+		      <0x00 0xe3bb0000 0x00 0x1c450000>,
+		      <0x08 0x80000000 0x00 0x38700000>,
+		      <0x08 0xc0000000 0x01 0x40000000>,
+		      <0x0a 0x00 0x02 0x00>;
+	};
+};
+
+/*
+ * RPMH 轨位族【v3 逐轨按 RT 值重建（AUDIT-T4 §2 对账 75 轨）：
+ * - 实体差异 8 轨取 RT 值：bob1 min 3008 / bob2 2704-3008 / l7b max 3008 /
+ *   l11b min 1200 / l1g 1144-1256 / l7m 2800-2904 / l2n 1104 / l6n 3304
+ * - RT 缺轨（ldob1/4/10、ldog2、ldom6）无主线消费者，不写入
+ * - initial-mode = HPM（RT init-mode 0x04 = downstream HPM；特例 smpg4
+ *   RT init=retention，运行态 HPM 保留 + 台账注记）
+ * - PMIC 间 supply 链（vdd-lX-supply 族）= 主线 binding 必需；拓扑取 QCOM
+ *   官方参考设计惯例（主线 sm8550 全系板同形），RT（RPMh 固件域）不表达
+ * - L13B（旧面板 vci LDO）RT=disabled——三轨 GPIO 门控改法的 stock 自刀实证
+ */
+&apps_rsc {
+	regulators-0 {
+		compatible = "qcom,pm8550-rpmh-regulators";
+		qcom,pmic-id = "b";
+
+		vdd-bob1-supply = <&vph_pwr>;
+		vdd-bob2-supply = <&vph_pwr>;
+		vdd-l1-l4-l10-supply = <&vreg_s6g_1p8>;
+		vdd-l2-l13-l14-supply = <&vreg_bob1>;
+		vdd-l3-supply = <&vreg_s4g_1p3>;
+		vdd-l5-l16-supply = <&vreg_bob1>;
+		vdd-l6-l7-supply = <&vreg_bob1>;
+		vdd-l8-l9-supply = <&vreg_bob1>;
+		vdd-l11-supply = <&vreg_s4g_1p3>;
+		vdd-l12-supply = <&vreg_s6g_1p8>;
+		vdd-l15-supply = <&vreg_s6g_1p8>;
+		vdd-l17-supply = <&vreg_bob2>;
+
+		/* 【RT bobb1 3008-3960】 */
+		vreg_bob1: bob1 {
+			regulator-name = "vreg_bob1";
+			regulator-min-microvolt = <3008000>;
+			regulator-max-microvolt = <3960000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT bobb2 2704-3008 init 2720】 */
+		vreg_bob2: bob2 {
+			regulator-name = "vreg_bob2";
+			regulator-min-microvolt = <2704000>;
+			regulator-max-microvolt = <3008000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldob2 3008/3008】 */
+		vreg_l2b_3p0: ldo2 {
+			regulator-name = "vreg_l2b_3p0";
+			regulator-min-microvolt = <3008000>;
+			regulator-max-microvolt = <3008000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldob5 无电压声明（0x2ed=L5B 被引用于 eusb2 vdd3）；
+		 * 3104 = 主线 sm8550 惯例参照，实跑 20+ 天】 */
+		vreg_l5b_3p1: ldo5 {
+			regulator-name = "vreg_l5b_3p1";
+			regulator-min-microvolt = <3104000>;
+			regulator-max-microvolt = <3104000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldob6 1800-3008 init 1800】 */
+		vreg_l6b_1p8: ldo6 {
+			regulator-name = "vreg_l6b_1p8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <3008000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldob7 1800-3008 init 1800（v2 max=1800 收紧，取 RT）】 */
+		vreg_l7b_1p8: ldo7 {
+			regulator-name = "vreg_l7b_1p8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <3008000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldob8 1800-3008 init 1800】 */
+		vreg_l8b_1p8: ldo8 {
+			regulator-name = "vreg_l8b_1p8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <3008000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldob9 2960-3008 init 2960】 */
+		vreg_l9b_2p9: ldo9 {
+			regulator-name = "vreg_l9b_2p9";
+			regulator-min-microvolt = <2960000>;
+			regulator-max-microvolt = <3008000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldob11 1200-1504 init 1200（v2 min=1100，取 RT）】 */
+		vreg_l11b_1p1: ldo11 {
+			regulator-name = "vreg_l11b_1p1";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1504000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldob12 1800/1800 init 1800】 */
+		vreg_l12b_1p8: ldo12 {
+			regulator-name = "vreg_l12b_1p8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldob13 3000/3000 但 status=disabled——stock 自刀（面板改
+		 * GPIO 门控后弃用）；节点保留（l13b 无消费者了？主线触控 vddio=
+		 * l12b，无 l13b 消费者 ⇒ 不写入。此处仅注释存证，无节点】 */
+
+		/* 【RT ldob14 3200/3200 init 3200】 */
+		vreg_l14b_3p2: ldo14 {
+			regulator-name = "vreg_l14b_3p2";
+			regulator-min-microvolt = <3200000>;
+			regulator-max-microvolt = <3200000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldob15 1800/1800 init 1800】 */
+		vreg_l15b_1p8: ldo15 {
+			regulator-name = "vreg_l15b_1p8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldob16 2800/2800 init 2800】 */
+		vreg_l16b_2p8: ldo16 {
+			regulator-name = "vreg_l16b_2p8";
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldob17 2504/2504 init 2504】 */
+		vreg_l17b_2p5: ldo17 {
+			regulator-name = "vreg_l17b_2p5";
+			regulator-min-microvolt = <2504000>;
+			regulator-max-microvolt = <2504000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+	};
+
+	regulators-1 {
+		compatible = "qcom,pm8550vs-rpmh-regulators";
+		qcom,pmic-id = "c";
+
+		vdd-l1-supply = <&vreg_s4g_1p3>;
+		vdd-l2-supply = <&vreg_s4e_0p95>;
+		vdd-l3-supply = <&vreg_s4e_0p95>;
+
+		/* 【RT ldoc1 1200/1200 init 1200】 */
+		vreg_l1c_1p2: ldo1 {
+			regulator-name = "vreg_l1c_1p2";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldoc3 880-912 init 912】 */
+		vreg_l3c_0p9: ldo3 {
+			regulator-name = "vreg_l3c_0p9";
+			regulator-min-microvolt = <880000>;
+			regulator-max-microvolt = <912000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+	};
+
+	regulators-2 {
+		compatible = "qcom,pm8550vs-rpmh-regulators";
+		qcom,pmic-id = "d";
+
+		vdd-l1-supply = <&vreg_s4e_0p95>;
+		vdd-l2-supply = <&vreg_s4e_0p95>;
+		vdd-l3-supply = <&vreg_s4e_0p95>;
+
+		/* 【RT ldod1 880-920 init 880】 */
+		vreg_l1d_0p88: ldo1 {
+			regulator-name = "vreg_l1d_0p88";
+			regulator-min-microvolt = <880000>;
+			regulator-max-microvolt = <920000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+	};
+
+	regulators-3 {
+		compatible = "qcom,pm8550vs-rpmh-regulators";
+		qcom,pmic-id = "e";
+
+		vdd-l1-supply = <&vreg_s4e_0p95>;
+		vdd-l2-supply = <&vreg_s4e_0p95>;
+		vdd-l3-supply = <&vreg_s4g_1p3>;
+		vdd-s4-supply = <&vph_pwr>;
+		vdd-s5-supply = <&vph_pwr>;
+
+		/* 【RT smpe4 904-984 init 952】 */
+		vreg_s4e_0p95: smps4 {
+			regulator-name = "vreg_s4e_0p95";
+			regulator-min-microvolt = <904000>;
+			regulator-max-microvolt = <984000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT smpe5 1010-1120 init 1080】 */
+		vreg_s5e_1p08: smps5 {
+			regulator-name = "vreg_s5e_1p08";
+			regulator-min-microvolt = <1010000>;
+			regulator-max-microvolt = <1120000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldoe1 880-912 init 880】 */
+		vreg_l1e_0p88: ldo1 {
+			regulator-name = "vreg_l1e_0p88";
+			regulator-min-microvolt = <880000>;
+			regulator-max-microvolt = <912000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldoe2 870-970 init 904】 */
+		vreg_l2e_0p9: ldo2 {
+			regulator-name = "vreg_l2e_0p9";
+			regulator-min-microvolt = <870000>;
+			regulator-max-microvolt = <970000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldoe3 1200/1200 init 1200】 */
+		vreg_l3e_1p2: ldo3 {
+			regulator-name = "vreg_l3e_1p2";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+	};
+
+	regulators-4 {
+		compatible = "qcom,pm8550ve-rpmh-regulators";
+		qcom,pmic-id = "f";
+
+		vdd-l1-supply = <&vreg_s4e_0p95>;
+		vdd-l2-supply = <&vreg_s4e_0p95>;
+		vdd-l3-supply = <&vreg_s4e_0p95>;
+		vdd-s4-supply = <&vph_pwr>;
+
+		/* 【RT smpf4 300-700 init 500】 */
+		vreg_s4f_0p5: smps4 {
+			regulator-name = "vreg_s4f_0p5";
+			regulator-min-microvolt = <300000>;
+			regulator-max-microvolt = <700000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldof1 880-912 init 912】 */
+		vreg_l1f_0p9: ldo1 {
+			regulator-name = "vreg_l1f_0p9";
+			regulator-min-microvolt = <880000>;
+			regulator-max-microvolt = <912000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldof2 880-912 init 880】 */
+		vreg_l2f_0p88: ldo2 {
+			regulator-name = "vreg_l2f_0p88";
+			regulator-min-microvolt = <880000>;
+			regulator-max-microvolt = <912000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldof3 880-912 init 912】 */
+		vreg_l3f_0p88: ldo3 {
+			regulator-name = "vreg_l3f_0p88";
+			regulator-min-microvolt = <880000>;
+			regulator-max-microvolt = <912000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+	};
+
+	regulators-5 {
+		compatible = "qcom,pm8550vs-rpmh-regulators";
+		qcom,pmic-id = "g";
+
+		vdd-l1-supply = <&vreg_s4g_1p3>;
+		vdd-l2-supply = <&vreg_s4g_1p3>;
+		vdd-l3-supply = <&vreg_s4g_1p3>;
+		vdd-s1-supply = <&vph_pwr>;
+		vdd-s2-supply = <&vph_pwr>;
+		vdd-s3-supply = <&vph_pwr>;
+		vdd-s4-supply = <&vph_pwr>;
+		vdd-s5-supply = <&vph_pwr>;
+		vdd-s6-supply = <&vph_pwr>;
+
+		/* 【RT smpg1 1200-1300 init 1256】 */
+		vreg_s1g_1p2: smps1 {
+			regulator-name = "vreg_s1g_1p2";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1300000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT smpg2 500-1036 init 852】 */
+		vreg_s2g_0p8: smps2 {
+			regulator-name = "vreg_s2g_0p8";
+			regulator-min-microvolt = <500000>;
+			regulator-max-microvolt = <1036000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT smpg3 300-1004 init 752】 */
+		vreg_s3g_0p7: smps3 {
+			regulator-name = "vreg_s3g_0p7";
+			regulator-min-microvolt = <300000>;
+			regulator-max-microvolt = <1004000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT smpg4 1200-1352 init 1304；RT init-mode=retention 特例
+		 * （运行态 HPM），主线写 HPM——台账注记】 */
+		vreg_s4g_1p3: smps4 {
+			regulator-name = "vreg_s4g_1p3";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1352000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT smpg5 500-1004 init 852】 */
+		vreg_s5g_0p8: smps5 {
+			regulator-name = "vreg_s5g_0p8";
+			regulator-min-microvolt = <500000>;
+			regulator-max-microvolt = <1004000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT smpg6 1800-2000 init 1856】 */
+		vreg_s6g_1p8: smps6 {
+			regulator-name = "vreg_s6g_1p8";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <2000000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldog1 1144-1256 init 1200（v2 固定 1200，取 RT 范围）】 */
+		vreg_l1g_1p2: ldo1 {
+			regulator-name = "vreg_l1g_1p2";
+			regulator-min-microvolt = <1144000>;
+			regulator-max-microvolt = <1256000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+			regulator-allow-set-load;
+			regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM
+					   RPMH_REGULATOR_MODE_HPM>;
+		};
+
+		/* 【RT ldog3 1200/1200 init 1200】 */
+		vreg_l3g_1p2: ldo3 {
+			regulator-name = "vreg_l3g_1p2";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+		};
+	};
+
+
+};
+
+/* 【A：RT xo_board = 0x493e000 = 76.8MHz；sleep_clk 32.764kHz = SM8550
+ * 硬件常数（主线全系板惯例；fixed-clock 无 frequency = clk 框架拒用）】 */
+&xo_board {
+	clock-frequency = <76800000>;
+};
+
+&sleep_clk {
+	clock-frequency = <32764>;
+};
+
+/* 【D：QCE 与安全世界共享不安全（上游注释惯例，全系板同形）】 */
+&crypto {
+	status = "disabled";
+};
+
+/* ==================== T1 显示面 ==================== */
+
+/* 【D：主线 binding 惯例（GFX zap 裸机域，战役固件政策 vendor 优先——
+ * a740_zap.mbn = stock harvest 件）】 */
+&gpu {
+	status = "okay";
+
+	zap-shader {
+		firmware-name = "qcom/sm8550/a740_zap.mbn";
+	};
+};
+
+/* 【D：MDSS memory-region = splash 缓冲（UEFI 链 splash 交接）；status
+ * okay = 显示栈使能】 */
+&mdss {
+	memory-region = <&splash_region>;
+	status = "okay";
+};
+
+/* 【D：m2381 无 DP 用例；DP 组件 deferred 拖死 DRM 组件等待 ⇒ DSI/panel
+ * 永不 probe（2026-09-28 面板 bring-up 实锤）。stock 有完整 DP 树（entry
+ * 族），复用等 dp0 冲突面调研后再议】 */
+&mdss_dp0 {
+	status = "disabled";
+};
+
+/* ★显示分片（factory-first；花屏射击列表随本片，S1 = 判决点）：
+ * - reset = TLMM **133**（【A】entry9 qcom,platform-reset-gpio=0x85 + RT
+ *   platform-reset-gpio 同值，双证；旧 205 为 inf 派生错值。210 = UFS 复位脚
+ *   （RT ufs 节点 0xd2），勿混；硬定律#9「Mu 写 GPIO210 即死」= 写 UFS 复位线，
+ *   历史自洽）。
+ * - 供电三轨 = GPIO 门控（见 root panel_vddio/vdd/vci），旧 LDO 三轨摘除；
+ *   L13B stock 自刀 disabled（AUDIT-T4 §2.3）= 改法 stock 侧实证。
+ * - 驱动侧（panel-boe-meizu20.c，TODO(m2381-panel)：mainline 尚无此面板，
+ *   节点保持主线形态、输入按原厂纠正）：
+ *   · mode 120Hz porch 50/16/50+20/4/12（htotal 1196）= entry9 timing@0 同
+ *   · bitclk hs_rate=1094 = entry9 panel-clockrate 四档全值 0x41351d80
+ *   · init 序列 32 条/DSC 540x20 bpc10 bpp8 = entry9 逐字节同族（FINDINGS）
+ *   · E4 票（随 S1 同轮单变量）：驱动 reset 物理时序 高5→低2→高10ms vs
+ *     原厂 高10→低10→高10ms（entry9 reset-sequence <1 10 0 10 1 10>）——
+ *     驱动两行 mdelay，非 DTS 项，LEDGER 驱动侧行在案
+ *   · 背光刻度票（S2 拍板）：驱动 min50/max3515 vs entry9 bl-min 0x0f /
+ *     bl-max 0xfff——驱动侧，非 DTS 项
+ * 真值表 = factory-first/reports/PANEL-GROUND-TRUTH.md */
+&mdss_dsi0 {
+	/* 【B：DSI 主时钟轨=下游不映射（RPMh 固件域），主线 binding 必需；
+	 * l3e 1.2V = RT ldoe3 实值 1200/1200 自洽】 */
+	vdda-supply = <&vreg_l3e_1p2>;
+	status = "okay";
+
+	display_panel: panel@0 {
+		compatible = "meizu,m2468-noprobe-test";
+		reg = <0>;
+
+		/* 【A：entry9 sde_dsi_active/suspend = gpio133（ds8 bias-disable /
+		 * ds2 pull-down）；sde_te = gpio86 mdp_vsync（platform-te-gpio）】 */
+		pinctrl-0 = <&sde_dsi_active>, <&sde_te_active>;
+		pinctrl-1 = <&sde_dsi_suspend>, <&sde_te_suspend>;
+		pinctrl-names = "default", "sleep";
+
+		vddio-supply = <&panel_vddio>;
+		vdd-supply = <&panel_vdd>;
+		vci-supply = <&panel_vci>;
+
+		reset-gpios = <&tlmm 133 GPIO_ACTIVE_LOW>;
+
+		port {
+			panel0_in: endpoint {
+				remote-endpoint = <&mdss_dsi0_out>;
+			};
+		};
+	};
+};
+
+&mdss_dsi0_out {
+	remote-endpoint = <&panel0_in>;
+	/* 【A：entry9 lane_map_0123/4 lane】 */
+	data-lanes = <0 1 2 3>;
+	/* 【A：entry9 qcom,platform-te-gpio = tlmm 86，Android 主外部 TE 输入】 */
+	qcom,te-source = "mdp_vsync_p";
+};
+
+&mdss_dsi0_phy {
+	/* 【B：DSI PHY 轨同 dsi0 处理；l1e = RT ldoe1 880-912 实值自洽】 */
+	vdds-supply = <&vreg_l1e_0p88>;
+	/* 【T-TC：stock runtime FDT 面板 phy-timings 原值（TC0-13 byte 单位，
+	 * 四档刷新率共用，dis_id=4DB501 实跑生效组）。主线公式系 UI 量纲灌
+	 * byte 寄存器 = 8 倍过量 + clk_post 违例，见 dsi-regdiff-20261004】 */
+	qcom,panel-phy-timings = /bits/ 8 <0x03 0x26 0x08 0x09 0x18 0x25
+					   0x09 0x0a 0x08 0x02 0x04 0x00
+					   0x1f 0x0f>;
+	status = "okay";
+};
+
+/* ==================== T2 存活面 ==================== */
+
+/* 【D：i2c0(a80000) NFC = NXP SN100 族（prep 轮三源定案：stock FDT nq@28
+ * status ok + compatible qcom,sn-nci；H3 flyme 实测 sn-nci@0x28；同址
+ * tms_thn31@28 = disabled 模板残留）。10-03 空总线活体单测全绿。
+ * 主线 nxp-nci_i2c（K30 同款驱动）翻译 stock 三 GPIO：irq=tlmm55 /
+ * ven=tlmm30 / firm=tlmm85；clkreq tlmm31 + nfc_ref_clk 主线驱动无消费者
+ * （挂观察）；sn-vdd-1p8 = L15B 1.8V（主线驱动无 supply 属性）。
+ * 用户态 NFC 栈不在基线；设备日首查 = probe + 版本读回】 */
+&i2c0 {
+	clock-frequency = <400000>;
+	status = "okay";
+
+	nfc@28 {
+		compatible = "nxp,nxp-nci-i2c";
+		reg = <0x28>;
+
+		interrupt-parent = <&tlmm>;
+		interrupts = <55 IRQ_TYPE_LEVEL_HIGH>;
+		enable-gpios = <&tlmm 30 GPIO_ACTIVE_HIGH>;
+		firmware-gpios = <&tlmm 85 GPIO_ACTIVE_HIGH>;
+	};
+};
+
+/* 【D：震动判型+落地合并轮（r55，2026-10-04 设备日用户拍板「现在 mini 轮」）：
+ * 994000 DT 未使能 = 判型本身被挡 ⇒ hub_5 开 + haptics@5a 节点同轮落地。
+ * irq tlmm99 / reset tlmm109 = stock haptic_hv@5A 资源翻译（原桩）。
+ * reset 极性 = ACTIVE_LOW（r56 10-04 设备日实测：物理低=芯片活 [ID 可读]，
+ * 物理高=总线全静默；stock vendor 驱动收尾态高=运行 ⇒ 引脚物理低有效）。
+ * r55 实测真身 = AW8697（reg 0x00=0x97；0x57/58=0x20f0 该族私布局），
+ * 主线零驱动（aw86927 只认 0x9270/0x9380；aw86927 桩 probe 期 -ENODEV 但
+ * 每启动 dmesg 自报真身，判型期使命完成）。
+ * r57（10-04 用户拍板 B 路线）= compatible 换 "awinic,aw8697" 挂自写
+ * aw8697.c（drivers/input/misc，最小 ff-memless + CONT 模式：寄存器图 =
+ * OEM aw8697_haptic/haptic_hv 双源，马达真值 = stock FDT haptic_hv@5A
+ * 节点[f0 170Hz/drv 0x35/ov 0x7d/td 0x9a/zc 0xff1/brk 3]，LRA 无 ERM
+ * 惯性假设）；RAM 波形模式不做，irq 仅故障上报】 */
+&i2c_hub_5 {
+	clock-frequency = <400000>;
+	status = "okay";
+
+	haptics@5a {
+		compatible = "awinic,aw8697";
+		reg = <0x5a>;
+
+		interrupt-parent = <&tlmm>;
+		interrupts = <99 IRQ_TYPE_LEVEL_HIGH>;
+		reset-gpios = <&tlmm 109 GPIO_ACTIVE_LOW>;
+	};
+};
+
+/* 【A：entry9 qcom,i2c-touch-active="goodix,gt9916" + goodix-berlin@5d：
+ * reset 0x18=24 / irq 0x19=25 EDGE falling、1080x2400 全同。
+ * avdd：stock = humu L9B ~2.96V vs 我方 l14b 3.2V（触控在用，低先验对账项
+ * 台账在案）；vddio = l12b（RT L12B 1800 自洽）】 */
+&i2c4 {
+	clock-frequency = <400000>;
+	status = "okay";
+
+	touchscreen@5d {
+		compatible = "goodix,gt9916";
+		reg = <0x5d>;
+
+		pinctrl-0 = <&ts_irq>, <&ts_reset>;
+		pinctrl-names = "default";
+
+		interrupt-parent = <&tlmm>;
+		interrupts = <25 IRQ_TYPE_EDGE_FALLING>;
+		reset-gpios = <&tlmm 24 GPIO_ACTIVE_LOW>;
+
+		avdd-supply = <&vreg_l14b_3p2>;
+		vddio-supply = <&vreg_l12b_1p8>;
+
+		touchscreen-size-x = <1080>;
+		touchscreen-size-y = <2400>;
+	};
+};
+
+/* 【A：RT key_vol_up gpio6 + pon_pwrkey/resin（power/vol-down 主线惯例形态）】 */
+&pon_pwrkey {
+	status = "okay";
+};
+
+&pon_resin {
+	linux,code = <KEY_VOLUMEDOWN>;
+
+	status = "okay";
+};
+
+/* 【A：RT ufs 节点 reset-gpios = 0xd2 = 210（=硬定律#9 那根线，UFS 复位）。
+ * 轨：vcc=l17b（RT 2504/2504）/vccq=l1g（RT 1144-1256 init 1200）/hba=l3g
+ * （RT 1200/1200）全自洽】 */
+&ufs_mem_hc {
+	reset-gpios = <&tlmm 210 GPIO_ACTIVE_LOW>;
+	vcc-supply = <&vreg_l17b_2p5>;
+	vcc-max-microamp = <1300000>;
+	vccq-supply = <&vreg_l1g_1p2>;
+	vccq-max-microamp = <1200000>;
+	vdd-hba-supply = <&vreg_l3g_1p2>;
+
+	status = "okay";
+};
+
+&ufs_mem_phy {
+	vdda-phy-supply = <&vreg_l1d_0p88>;
+	vdda-pll-supply = <&vreg_l3e_1p2>;
+
+	status = "okay";
+};
+
+/*
+ * 【2026-10-28 修正：USB 改纯 peripheral】
+ * 原配置 dr_mode="otg" + usb-psy-name="qcom-battmgr-usb" +
+ * remote-endpoint=<&pmic_glink_hs_in> 三处全部依赖 pmic-glink，
+ * 而 pmic-glink 需要 ADSP/pdr 且实测 failed to init pdr ->
+ * dwc3 永远等不到 role/VBUS 判断 -> 不发 D+ 上拉 -> PC 端无枚举。
+ * 改 peripheral 直接进 gadget 模式，切断对外部服务的依赖。
+ */
+&usb_1 {
+	/*
+	 * 【2026-11-04 快充修复：恢复 otg + usb-role-switch】
+	 * 旧配置砍掉 usb-role-switch 导致 UCSI ucsi_init() 永久 -EPROBE_DEFER
+	 * -> "PPM init failed, stop trying" -> /sys/class/typec 空
+	 * -> usb_type 永远 Unknown -> ADSP 按 SDP 限流 -> 没有快充。
+	 * 保留绕开 USB3/DP combo PHY 的改动（phys 只给 hsphy + UTMI 当 pipe clk），
+	 * 用 role-switch-default-mode=peripheral 保证上电初始是设备模式（串口 console 不退）。
+	 */
+	role-switch-default-mode = "peripheral";
+	phys = <&usb_1_hsphy>;
+	phy-names = "usb2-phy";
+	maximum-speed = "high-speed";
+	qcom,select-utmi-as-pipe-clk;
+	status = "okay";
+};
+
+&usb_1_dwc3_hs {
+	remote-endpoint = <&pmic_glink_hs_in>;
+};
+
+&usb_1_hsphy {
+	phys = <&pm8550b_eusb2_repeater>;
+
+	vdd-supply = <&vreg_l1e_0p88>;
+	vdda12-supply = <&vreg_l3e_1p2>;
+
+	status = "okay";
+};
+
+&usb_dp_qmpphy {
+	vdda-phy-supply = <&vreg_l3f_0p88>;
+	vdda-pll-supply = <&vreg_l3e_1p2>;
+
+	mode-switch;
+
+	/* 2026-10-29 按 fuxi：不碰 USB3/DP combo PHY，避免它拖死 dwc3 probe */
+	status = "disabled";
+};
+
+&usb_dp_qmpphy_out {
+	remote-endpoint = <&redriver_ss_in>;
+};
+
+/* 【A：RT eusb2-repeater@fd00 vdd18=0x2f4=L15B / vdd3=0x2ed=L5B（AUDIT-T4
+ * §4 轨身份解案）。RT 的 tune = qcom,param-override-seq 下游形态（寄存器
+ * 序列在 AUDIT-T4 §4 备查），主线四属性无直接映射证 ⇒ 不写入】 */
+&pm8550b_eusb2_repeater {
+	vdd18-supply = <&vreg_l15b_1p8>;
+	vdd3-supply = <&vreg_l5b_3p1>;
+};
+
+/* ==================== T3 无线面 ==================== */
+
+&gpi_dma1 {
+	status = "okay";
+};
+
+&gpi_dma2 {
+	status = "okay";
+};
+
+&i2c_master_hub_0 {
+	status = "okay";
+};
+
+&qupv3_id_0 {
+	status = "okay";
+};
+
+&qupv3_id_1 {
+	status = "okay";
+};
+
+/* 【A：RT ipa fw 布局 = vendor 分区 harvest（固件政策 vendor 优先）】 */
+&ipa {
+	firmware-name = "qcom/sm8550/meizu/ipa_fws.mbn";
+	status = "okay";
+};
+
+&pcie0 {
+	wake-gpios = <&tlmm 96 GPIO_ACTIVE_HIGH>;
+	perst-gpios = <&tlmm 94 GPIO_ACTIVE_LOW>;
+
+	pinctrl-0 = <&pcie0_default_state>;
+	pinctrl-names = "default";
+
+	status = "okay";
+};
+
+&pcie0_port0 {
+	wifi@0 {
+		compatible = "pci17cb,1107";
+		reg = <0x10000 0x0 0x0 0x0 0x0>;
+		qcom,soc-serial-mac-address;
+
+		/* 【主线 wcn7850 PCI 消费者形态（PMU LDO 九轨），WiFi 5G 战役
+		 * 现役实证（现网5G 满档 HE-MCS11）】 */
+		vddrfacmn-supply = <&vreg_pmu_rfa_cmn>;
+		vddaon-supply = <&vreg_pmu_aon_0p59>;
+		vddwlcx-supply = <&vreg_pmu_wlcx_0p8>;
+		vddwlmx-supply = <&vreg_pmu_wlmx_0p85>;
+		vddrfa0p8-supply = <&vreg_pmu_rfa_0p8>;
+		vddrfa1p2-supply = <&vreg_pmu_rfa_1p2>;
+		vddrfa1p8-supply = <&vreg_pmu_rfa_1p8>;
+		vddpcie0p9-supply = <&vreg_pmu_pcie_0p9>;
+		vddpcie1p8-supply = <&vreg_pmu_pcie_1p8>;
+	};
+};
+
+&pcie0_phy {
+	vdda-phy-supply = <&vreg_l1e_0p88>;
+	vdda-pll-supply = <&vreg_l3e_1p2>;
+
+	status = "okay";
+};
+
+/* 【A：RT uart7 = geni-debug-uart@a9c000（serial0，stock debug console；
+ * 本链无串口引出，okay 无害——console 走 fbcon/earlycon-efifb）】 */
+&uart7 {
+	status = "okay";
+};
+
+/* 【A：RT BT = uart14 + gpio81 enable；主线 wcn7850-bt 形态，BT 战役现役】 */
+&uart14 {
+	status = "okay";
+
+	bluetooth {
+		compatible = "qcom,wcn7850-bt";
+
+		vddrfacmn-supply = <&vreg_pmu_rfa_cmn>;
+		vddaon-supply = <&vreg_pmu_aon_0p59>;
+		vddwlcx-supply = <&vreg_pmu_wlcx_0p8>;
+		vddwlmx-supply = <&vreg_pmu_wlmx_0p85>;
+		vddrfa0p8-supply = <&vreg_pmu_rfa_0p8>;
+		vddrfa1p2-supply = <&vreg_pmu_rfa_1p2>;
+		vddrfa1p8-supply = <&vreg_pmu_rfa_1p8>;
+
+		max-speed = <3200000>;
+		qcom,soc-serial-bd-address;
+	};
+};
+
+/* 【D：typec 三件（retimer/fsa4480/pmic-glink 拓扑）= 主线形态现役栈；
+ * RT 下游为不同框架（usb-redriver/Type-C manager）】 */
+&i2c_hub_2 {
+	clock-frequency = <400000>;
+	status = "okay";
+
+	typec-retimer@1c {
+		compatible = "onnn,nb7vpq904m";
+		reg = <0x1c>;
+
+		vcc-supply = <&vreg_l15b_1p8>;
+
+		retimer-switch;
+		orientation-switch;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				redriver_ss_out: endpoint {
+					remote-endpoint = <&pmic_glink_ss_in>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+
+				redriver_ss_in: endpoint {
+					data-lanes = <3 2 1 0>;
+					remote-endpoint = <&usb_dp_qmpphy_out>;
+				};
+			};
+		};
+	};
+
+	/*
+	 * 【D：fsa4480 摘除（typec-mux@42），10-07】板上未焊（i2cdetect bus5
+	 * 0x42 干净；flyme 取证日 stock 侧 typec 栈全活也无此芯片）。节点在 =
+	 * 驱动读芯片 ID 失败 probe -ENODEV -> pmic_glink_altmode
+	 * "failed to acquire mode-switch for port: 0" EPROBE_DEFER ->
+	 * /sys/class/typec 永空。摘除后 altmode 链自通，port0 应点亮。
+	 * retimer (nb7vpq904m 0x1c) 保留 = SS 通道真件（stock 同在位）。
+	 */
+};
+
+/* ==================== 相机平台开放（第 6 轮 R1） ====================
+ * 相机注释桩（上方案由）与 stock merged entry9 为准。传感器节点待设备日
+ * CCI 扫描；扫描轮 always-on 引导已撤（10-07 空转清剿），轨回按需上电。 */
+
+&i2c_hub_3 {
+	status = "okay";
+
+	pm8008j: pmic@8 {
+		compatible = "qcom,pm8008";
+		reg = <0x8>;
+
+		vdd-l1-l2-supply = <&vreg_s4g_1p3>;
+		vdd-l3-l4-supply = <&vreg_bob2>;
+		vdd-l5-supply = <&vreg_s6g_1p8>;
+		vdd-l6-supply = <&vreg_bob2>;
+		vdd-l7-supply = <&vreg_bob1>;
+
+		regulators {
+			pm8008j_l1: ldo1 {
+				regulator-name = "pm8008j_l1";
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <1200000>;
+			};
+
+			pm8008j_l2: ldo2 {
+				regulator-name = "pm8008j_l2";
+				regulator-min-microvolt = <1056000>;
+				regulator-max-microvolt = <1056000>;
+			};
+
+			pm8008j_l3: ldo3 {
+				regulator-name = "pm8008j_l3";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+
+			pm8008j_l4: ldo4 {
+				regulator-name = "pm8008j_l4";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+
+			pm8008j_l5: ldo5 {
+				regulator-name = "pm8008j_l5";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+			};
+
+			pm8008j_l6: ldo6 {
+				regulator-name = "pm8008j_l6";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+
+			pm8008j_l7: ldo7 {
+				regulator-name = "pm8008j_l7";
+				regulator-min-microvolt = <3100000>;
+				regulator-max-microvolt = <3300000>;
+			};
+		};
+	};
+};
+
+&i2c_hub_2 {
+	pm8008i: pmic@8 {
+		compatible = "qcom,pm8008";
+		reg = <0x8>;
+
+		vdd-l1-l2-supply = <&vreg_s4g_1p3>;
+		vdd-l3-l4-supply = <&vreg_bob2>;
+		vdd-l5-supply = <&vreg_s6g_1p8>;
+		vdd-l6-supply = <&vreg_s6g_1p8>;
+		vdd-l7-supply = <&vreg_bob2>;
+
+		regulators {
+			pm8008i_l1: ldo1 {
+				regulator-name = "pm8008i_l1";
+				regulator-min-microvolt = <1056000>;
+				regulator-max-microvolt = <1056000>;
+			};
+
+			pm8008i_l2: ldo2 {
+				regulator-name = "pm8008i_l2";
+				regulator-min-microvolt = <920000>;
+				regulator-max-microvolt = <920000>;
+			};
+
+			pm8008i_l3: ldo3 {
+				regulator-name = "pm8008i_l3";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+
+			pm8008i_l4: ldo4 {
+				regulator-name = "pm8008i_l4";
+				regulator-min-microvolt = <2800000>;
+				regulator-max-microvolt = <2800000>;
+			};
+
+			pm8008i_l5: ldo5 {
+				regulator-name = "pm8008i_l5";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+			};
+
+			pm8008i_l6: ldo6 {
+				regulator-name = "pm8008i_l6";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+			};
+
+			pm8008i_l7: ldo7 {
+				regulator-name = "pm8008i_l7";
+				regulator-min-microvolt = <2200000>;
+				regulator-max-microvolt = <2200000>;
+			};
+		};
+	};
+};
+
+&cci0 {
+	status = "okay";
+};
+
+&cci1 {
+	status = "okay";
+};
+
+&camss {
+	vdda-phy-supply = <&vreg_l1e_0p88>;
+	vdda-pll-supply = <&vreg_l3e_1p2>;
+
+	status = "okay";
+};
+
+/* ==================== T4 战役面 ==================== */
+
+/* 【D：视频硬解 prep 轮定案：固件已在固件包 qcom/vpu/vpu30_4v.mbn（sha256
+ * 46c1d9e3 = H3 实机拉回逐字节同）；主线 iris sm8550 平台默认请求
+ * vpu30_p4.mbn（iris_platform_vpu3x.c）= stock 分区无此名 ⇒ firmware-name
+ * 桥接（驱动按 of firmware-name[0] 优先取）。p4/4v 之争 = 「驱动请求名 vs
+ * stock 文件名」之差，非讹误。驱动/固件/节点三件齐 = 设备日 smoke（probe +
+ * V4L2 解码），固件包无需改动】 */
+&iris {
+	firmware-name = "qcom/vpu/vpu30_4v.mbn";
+	status = "okay";
+};
+
+/* 【A：RT va-macro qcom,va-dmic-sample-rate = 0x927c0 = 600000（AUDIT-T4
+ * §1.4，v2 的 4800000 为 inf 偏差）；vdd-micb = gpio0 门控轨（主线 DAPM
+ * optional，音频暂停档无消费者不使能）】 */
+&lpass_vamacro {
+	qcom,dmic-sample-rate = <600000>;
+	vdd-micb-supply = <&audio_va_micbias>;
+};
+
+/* 【D：WSA macro 本机无器件（WSA883x 证伪），关闭——音频战役在案】 */
+&lpass_wsamacro {
+	status = "disabled";
+};
+
+/* 【D：remoteproc fw = vendor 分区 harvest（固件政策 vendor 优先；
+ * adsp_dtb/cdsp_dtb/modem_dtb 双件 = m2381 GKI 固件布局）】 */
+&remoteproc_adsp {
+	firmware-name = "qcom/sm8550/meizu/adsp.mbn",
+			"qcom/sm8550/meizu/adsp_dtb.mbn";
+	/* E43 experiment: ADSP suspected of causing PMIC hard reset
+	 * (no panic in pstore, no watchdog, temp 33C, spontaneous reboot
+	 * every 3-20 min, and ESP gets corrupted after each reset).
+	 * Disable ADSP to isolate. Restore:
+	 * cp sm8550-meizu-21note73.dts.bak_before_adspoff <this file> */
+	status = "disabled";
+};
+
+&remoteproc_cdsp {
+	firmware-name = "qcom/sm8550/meizu/cdsp.mbn",
+			"qcom/sm8550/meizu/cdsp_dtb.mbn";
+	status = "okay";
+};
+
+&remoteproc_mpss {
+	firmware-name = "qcom/sm8550/meizu/modem.mbn",
+			"qcom/sm8550/meizu/modem_dtb.mbn";
+	status = "okay";
+};
+
+/*
+ * 【A：stock 把 ADSP static-PD (audiopd) 堆交给 {LPASS, ADSP_HEAP} vmid 对
+ * （base adsp_heap_region 同 recipe）。无 memory-region 则 fastrpc 无保留
+ * DMA 池、无 vmids 则 qcom_scm_assign_mem 跳过 ⇒ uAPM 起不来（传感器战役
+ * 三证：sensor_pd 在 ADSP）。形状镜像主线 sm8250/sm8750】 */
+&{/soc@0/remoteproc@6800000/glink-edge/fastrpc} {
+	memory-region = <&adsp_rpc_remote_heap_mem>;
+	qcom,vmids = <QCOM_SCM_VMID_LPASS QCOM_SCM_VMID_ADSP_HEAP>;
+};
+
+/* 【A：RT qcom,tri-led@pm8550 ef00 红/绿/蓝三色（pwm 通道 +1 = 主线 reg
+ * 约定）；从未端到端验证 = S3 观察项】 */
+&pm8550_pwm {
+	status = "okay";
+
+	power_led {
+		color = <LED_COLOR_ID_RGB>;
+		label = "power-led";
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		red@1 {
+			reg = <1>;
+			color = <LED_COLOR_ID_RED>;
+		};
+
+		green@2 {
+			reg = <2>;
+			color = <LED_COLOR_ID_GREEN>;
+		};
+
+		blue@3 {
+			reg = <3>;
+			color = <LED_COLOR_ID_BLUE>;
+		};
+	};
+};
+
+/* 【A：RT rtc offset nvmem = sdam_2@bc（r26 时钟战役根治链：timesyncd+
+ * polkit 之外，pmk8550_rtc 消费 offset 修正 RTC 只读漂移）】 */
+&pmk8550_rtc {
+	nvmem-cells = <&rtc_offset>;
+	nvmem-cell-names = "offset";
+};
+
+&pmk8550_sdam_2 {
+	rtc_offset: rtc-offset@bc {
+		reg = <0xbc 0x4>;
+	};
+};
+
+/* 【A：RT swr1/swr2 从设备 = wcd938x rx/tx slave（sdw id 0d:1170224/0d:1170223
+ * = 主线 sdw20217010d00 同器件）；端口映射主线形 1-5/2,2,3,4（RT 下游
+ * num-ports 12/5 + is-always-on 差异 = AUDIT-T4 §1.3 C 类，音频复燃判读
+ * 素材）。
+ * 【T4(2026-10-04)：stock 无 soundwire 节点（FDT 结构性反转实锤），本变体
+ * 总线停摆对齐 stock；wcd_rx/wcd_tx 随父节点失效。T3 变体恢复。】 */
+&swr1 {
+	status = "disabled";
+	wcd_rx: codec@0,4 {
+		compatible = "sdw20217010d00";
+		reg = <0 4>;
+		qcom,rx-port-mapping = <1 2 3 4 5>;
+	};
+};
+
+&swr2 {
+	status = "disabled";
+	wcd_tx: codec@0,3 {
+		compatible = "sdw20217010d00";
+		reg = <0 3>;
+		qcom,tx-port-mapping = <2 2 3 4>;
+	};
+};
+
+/* 【A：RT cs35l45@30=dsp-part-name cs35l45-rcv / @31=cs35l45-spk（扬/听筒
+ * = SEC MI2S，战役三源实锤）。★v3 新增（AUDIT-T4 §1.1 实体差异搬入）：
+ * 中断线 RCV=gpio88 / SPK=gpio63 LEVEL_HIGH。stock 真值（stock-dt-i2c10）：
+ * RCV reset-gpios=tlmm108 ACTIVE_LOW(flags 0x01) + switch-gpios=gpio47
+ * ACTIVE_HIGH（vendored 驱动才认 switch，主线无此绑定不阻 SPK 出声）、
+ * SPK 无复位线。主线 cs35l45.c devm_gpiod_get_optional("reset") 原生支持。
+ * 【T4(2026-10-04)：RCV 自持 gpio108（原注释「wcd 独占持有」随 wcd
+ * disabled 失效；flags 对拍 stock 0x01=ACTIVE_LOW 一致）。】 */
+&i2c10 {
+	clock-frequency = <400000>;
+	status = "okay";
+
+	cs35l45_rcv: cs35l45@30 {
+		compatible = "cirrus,cs35l45";
+		reg = <0x30>;
+		#sound-dai-cells = <0>;
+		sound-name-prefix = "RCV";
+
+		interrupt-parent = <&tlmm>;
+		interrupts = <88 IRQ_TYPE_LEVEL_HIGH>;
+
+		/* 【T4c(2026-10-04 设备日二迭代)：reset-gpios tlmm108 GPIO_ACTIVE_HIGH，
+		 * 双 amp 共享声明 = 主线 yodo/pdx234（SM8550+CS35L45 活体）同款；
+		 * 共享靠框架 -EBUSY 仲裁（第二实例 dev_dbg "shared reset" 直接 poll）。
+		 * 证据链：板上真值 = 物理高芯片活（T2 gpio108 high 双 probe 过 +
+		 * T4 boot @31 被 @30 err 路径放出来后 5ms 内 boot done）；主线
+		 * cs35l45.c 把 active 当出复位用（probe set_value(1)）→ 必须配
+		 * ACTIVE_HIGH。T4 的 stock flags 0x01=ACTIVE_LOW 是 vendored 驱动
+		 * 标准脉冲语义，跨驱动照抄 = set_value(1) 把芯片按进复位 = @30
+		 * OTP poll 5ms 超时（设备日实锤）。T4b 摘线判负 = 上电默认态
+		 * 线浮空芯片不复位自举，双 amp 全 timeout——必须有人驱动。】 */
+		reset-gpios = <&tlmm 108 GPIO_ACTIVE_HIGH>;
+
+		vdd-a-supply = <&vreg_l15b_1p8>;
+		vdd-batt-supply = <&audio_vsys>;
+
+		/* 【（七十五）补 stock 全套 gpio-ctrl：INTB 复用在 GPIO2 pad，
+		 * 缺配置时芯片不驱动 pad = 线浮空（IRQ 假风暴根因：LEVEL_HIGH
+		 * 时代 38/s 自激、LEVEL_LOW 时代 @30 凑巧停 @31 板级干扰 67/s）。
+		 * 值逐项 = stock 活体 FDT（live-fdt-slotA-20260922）@30/@31 全同；
+		 * gpio-ctrl2 的 gpio-invert=1 同时置驱动 irq_invert → 触发类型
+		 * IRQF_TRIGGER_HIGH（驱动不看 DT flags，见 cs35l45.c irq_pol）。】 */
+		cirrus,gpio-ctrl1 {
+			gpio-ctrl = <0x02>;
+		};
+		cirrus,gpio-ctrl2 {
+			gpio-invert = <0x01>;
+			gpio-ctrl = <0x05>;
+		};
+		cirrus,gpio-ctrl3 {
+			gpio-ctrl = <0x00>;
+		};
+	};
+
+	cs35l45_spk: cs35l45@31 {
+		compatible = "cirrus,cs35l45";
+		reg = <0x31>;
+		#sound-dai-cells = <0>;
+		sound-name-prefix = "SPK";
+
+		interrupt-parent = <&tlmm>;
+		interrupts = <63 IRQ_TYPE_LEVEL_HIGH>;
+
+		/* 【T4c：共享 reset 线声明 = yodo 同款；实际持有 = 先 probe 的
+		 * @30（-EBUSY 仲裁），本实例直接 poll（线已驱动到物理高=活）】 */
+		reset-gpios = <&tlmm 108 GPIO_ACTIVE_HIGH>;
+
+		vdd-a-supply = <&vreg_l15b_1p8>;
+		vdd-batt-supply = <&audio_vsys>;
+
+		/* 【（七十五）stock 全套 gpio-ctrl，与 @30 同值同注释依据】 */
+		cirrus,gpio-ctrl1 {
+			gpio-ctrl = <0x02>;
+		};
+		cirrus,gpio-ctrl2 {
+			gpio-invert = <0x01>;
+			gpio-ctrl = <0x05>;
+		};
+		cirrus,gpio-ctrl3 {
+			gpio-ctrl = <0x00>;
+		};
+	};
+};
+
+/* ==================== pinctrl 支持件 ==================== */
+
+&tlmm {
+	/* 【A：RT tlmm qcom,gpios-reserved = 32..39 = <32 8>（下游形态同值；
+	 * v2 注释「stock 无声明」系误判，本行改判 A——AUDIT-T4 §4）】 */
+	gpio-reserved-ranges = <32 8>;
+
+	/* 【A：RT sec-mi2s = gpio121(sck)/122(data0)/123(ws)/124(data1) ds8
+	 * bias-disable（fm_i2s1_pinctrl aud_active）。
+	 * 【T4(2026-10-04)：sck/ws output-high = sheng c6cb88224e 配套借鉴
+	 * （他 6×CS35L43 同族 MI2S 活体形态；空闲期保持线电平）。】 */
+	i2s1_default: i2s1-default-state {
+		sck-pins {
+			pins = "gpio121";
+			function = "i2s1_sck";
+			drive-strength = <8>;
+			bias-disable;
+			output-high;
+		};
+
+		data0-pins {
+			pins = "gpio122";
+			function = "i2s1_data0";
+			drive-strength = <8>;
+			bias-disable;
+		};
+
+		ws-pins {
+			pins = "gpio123";
+			function = "i2s1_ws";
+			drive-strength = <8>;
+			bias-disable;
+			output-high;
+		};
+
+		data1-pins {
+			pins = "gpio124";
+			function = "i2s1_data1";
+			drive-strength = <8>;
+			bias-disable;
+		};
+	};
+
+	/* 【A：RT bt enable gpio81 + sw-ctrl gpio82（wlan_boot bt_default）】 */
+	bt_default: bt-default-state {
+		bt-en-pins {
+			pins = "gpio81";
+			function = "gpio";
+			drive-strength = <16>;
+			bias-disable;
+		};
+
+		sw-ctrl-pins {
+			pins = "gpio82";
+			function = "gpio";
+			bias-pull-down;
+		};
+	};
+
+	/* 【A：entry9 触控 gpio24/25（ts_irq pull-up ds8 / ts_reset pull-up ds8）】 */
+	ts_irq: ts-irq-state {
+		pins = "gpio25";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-up;
+	};
+
+	ts_reset: ts-reset-state {
+		pins = "gpio24";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-up;
+	};
+
+	/* 【A：entry9 sde_dsi = gpio133 ds8 bias-disable(active) / ds2
+	 * pull-down(suspend)；与 panel reset 同脚（原厂同形：pinctrl 管态、
+	 * 面板驱动管电平翻转）】 */
+	sde_dsi_active: sde-dsi-active-state {
+		pins = "gpio133";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-disable;
+	};
+
+	sde_dsi_suspend: sde-dsi-suspend-state {
+		pins = "gpio133";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+
+	/* 【A：entry9 sde_te = gpio86 mdp_vsync ds2 pull-down（双态同形）】 */
+	sde_te_active: sde-te-active-state {
+		pins = "gpio86";
+		function = "mdp_vsync";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+
+	sde_te_suspend: sde-te-suspend-state {
+		pins = "gpio86";
+		function = "mdp_vsync";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+
+	/* 【A：RT wcd938x_reset = gpio108 ds16；active 态 output-low（主线
+	 * wcd 驱动管电平序）】 */
+	wcd_default: wcd-reset-n-active-state {
+		pins = "gpio108";
+		function = "gpio";
+		drive-strength = <16>;
+		bias-disable;
+		output-low;
+	};
+
+	/* 【A：RT audio_micbias_default = TLMM gpio0 function gpio output-high
+	 * bias-disable ds8（va-micb 门控，注意非 PMIC GPIO 域）】 */
+	audio_va_micbias_default: audio-va-micbias-default-state {
+		gpio0-pins {
+			pins = "gpio0";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-disable;
+			output-high;
+		};
+	};
+
+	/* 【A：RT wlan enable gpio80（wlan_boot wlan_en ds8 pull-down）】 */
+	wlan_en: wlan-en-state {
+		pins = "gpio80";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-down;
+	};
+};
+
+/* 【A：RT pm8550_gpios(0x5bd)：display_panel_vddi_default = gpio11
+ * output-high power-source 1；display_panel_vci_default = gpio1
+ * output-high power-source 0；key_vol_up = gpio6 pull-up input】 */
+&pm8550_gpios {
+	display_panel_vddio_default: display-panel-vddio-default-state {
+		pins = "gpio11";
+		function = "normal";
+		power-source = <1>;
+		bias-disable;
+		output-high;
+	};
+
+	display_panel_vci_default: display-panel-vci-default-state {
+		pins = "gpio1";
+		function = "normal";
+		power-source = <0>;
+		bias-disable;
+		output-high;
+	};
+
+	volume_up_n: volume-up-n-state {
+		pins = "gpio6";
+		function = "normal";
+		power-source = <1>;
+		bias-pull-up;
+		input-enable;
+	};
+};
+
+/* 【A：RT pm8550b_gpios(0x5ef) display_panel_vddr_default = gpio5
+ * output-high power-source 1】 */
+&pm8550b_gpios {
+	display_panel_vdd_default: display-panel-vdd-default-state {
+		pins = "gpio5";
+		function = "normal";
+		power-source = <1>;
+		bias-disable;
+		output-high;
+	};
+};
+
+/* 【A：RT pmk8550 gpio3 sleep-clk（wcn7850-pmu 消费；func1 output）】 */
+&pmk8550_gpios {
+	pmk8550_sleep_clk: sleep-clk-state {
+		pins = "gpio3";
+		function = "func1";
+		input-disable;
+		output-enable;
+		bias-disable;
+		power-source = <0>;
+	};
+};
+
+/* ===== M2468 旁路版 B3b：路径覆盖，只留 UART/显示/UFS/CPU ===== */
+
+/* I2C hub：hub 本身保留（Mu 需要），10 个 SE 全关 */
+/* remoteproc 全家 */
+/* IPA */
+/* USB：路径覆盖（这些节点没有 label） */
+
+/* GPU */
+/* 相机 */
+/* video codec */
+/* display：需要面板电源（PMIC），关掉推进到 initramfs */
+/* UFS：需要 VCC/VCCQ，initramfs 不需要磁盘 */
+
+/* USB：probe 后重启，暂时关闭 */
+/* UFS 时钟档位表：原厂 m2468-kalama.dts 的值，缺它 probe 会失败 */
+&{/soc@0/ufshc@1d84000} {
+	status = "okay";
+	/* freq-table-hz removed: ufshcd_parse_operating_points() rejects it
+	   when operating-points-v2 is present (ufs_opp_table covers all 8 clocks) */		/* rx_lane1_sync    */
+};
+
+/* UFS 关：probe 即崩，先扫 SPMI */
+
+/* ===== I2C SE disabled =====
+ * geni_i2c_probe+0x25c faults with "synchronous external abort" on the first
+ * read of GENI_FW_REVISION_RO (se->base + 0x68), even with SPMI/PMIC working.
+ * Every other peripheral (UFS / display / USB / GPU / camss / ipa) probes fine,
+ * so disable just the I2C engines and keep the rest.
+ */
+&i2c_hub_0 { status = "disabled"; };
+&i2c_hub_1 { status = "disabled"; };
+&i2c_hub_2 { status = "disabled"; };
+&i2c_hub_3 { status = "disabled"; };
+&i2c_hub_4 { status = "disabled"; };
+&i2c_hub_5 { status = "disabled"; };
+&i2c_hub_6 { status = "disabled"; };
+&i2c_hub_7 { status = "disabled"; };
+&i2c_hub_8 { status = "disabled"; };
+&i2c_hub_9 { status = "disabled"; };
+
+/* ===== display off for UFS test =====
+ * mdss needs a large contiguous IOMMU window plus panel power; it is the
+ * heaviest consumer in the boot chain. Disabled here so UFS can be validated
+ * on its own (this build keeps UFS/USB/GPU enabled).
+ */
+
+/* ===== SAFE BUILD =====
+ * 已知可跑通 init 的保守配置：
+ *   - I2C SE 全关（geni_i2c_probe+0x25c SError）
+ *   - display 关（mdss 需要大块 IOMMU 窗口）
+ *   - UFS 关（VCC/VCCQ 依赖，probe 后卡死）
+ * SPMI/PMIC 本身是好的，所以 init 能完整跑起来。
+ */
+
+
+
+/* ==== panel ENABLED for m2468 ==================================
+ * 历史：这里原本是 &display_panel { status = "disabled"; }，
+ * 因为 m2381 的 boe,meizu20-amoled-fhd 驱动在本机会崩。
+ * 现在已换成自写的 meizu,m2468-panel 驱动（ILI7838E，带完整
+ * NULL 检查），必须 enable，否则 dsi_bind() 的
+ * devm_drm_of_get_bridge() 拿不到 panel -> -ENODEV ->
+ * component bind 失败 -> drm_dev_register 不执行 -> 无 card0。
+ * ============================================================== */
+&display_panel { status = "okay"; };

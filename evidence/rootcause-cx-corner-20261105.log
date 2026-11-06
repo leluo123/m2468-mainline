@@ -1,0 +1,66 @@
+# Root cause: CX corner never rises (m2468, 2026-11-05)
+#
+# Artifact: pulled the vendor module out of the vendor_boot ramdisk and
+# compared it against mainline.
+#
+#   vendor_boot_a (96 MB) -> boot image v4 -> ramdisk (LZ4 legacy, 10,691,372 B)
+#   -> cpio (35,863,040 B, 356 .ko) -> /tmp/vbrd/lib/modules/qcom_q6v5_pas.ko
+#
+# 1) The vendor's power-domain handling is IDENTICAL to mainline:
+#
+#   adsp_pds_enable:
+#       mov  w1, #0x7fffffff                  ; INT_MAX
+#       bl   dev_pm_genpd_set_performance_state
+#       mov  w1, #0x4
+#       bl   __pm_runtime_resume
+#
+#   So patching qcom_q6v5_pas.c cannot fix this -- both trees do the same thing.
+#
+# 2) The vendor module additionally links regulator_set_voltage, which mainline's
+#    qcom_q6v5_pas.c never calls (mainline only does regulator_set_load):
+#
+#       U devm_regulator_get
+#       U regulator_set_load
+#       U regulator_set_voltage     <-- absent from mainline
+#       U regulator_enable / regulator_disable
+#
+# 3) The vendor DTS feeds the modem a corner regulator (phandle 0x26):
+#
+#       compatible = "qcom,rpmh-arc-regulator";
+#       qcom,resource-name = "cx.lvl";
+#       regulator-pm-v6e-s6-level {
+#           regulator-min-microvolt = <0x10>;        /* 16 = RETENTION */
+#           qcom,init-voltage-level = <0x180>;       /* 384 = TURBO   */
+#           qcom,proxy-consumer-enable;
+#           qcom,proxy-consumer-voltage = <0x180 0xffff>;
+#       };
+#
+#   Android therefore pins CX to at least corner 384 (TURBO) through a proxy
+#   consumer on the cx.lvl arc regulator.
+#
+# 4) Mainline has no equivalent: `grep -nE "arc|ARC" drivers/regulator/
+#    qcom-rpmh-regulator.c` returns nothing, and sm8550.dtsi models CX only as an
+#    rpmhpd power domain with no floor / no proxy consumer.
+#
+# 5) Measured consequence (pm_genpd_summary, repeatedly, including immediately
+#    after a clean modem start):
+#
+#       cx                              on     64
+#           898000.serial              active 64      <- the only real voter
+#           a80000.i2c                 suspended 0
+#           a9c000.serial              suspended 0
+#           genpd:0:4080000.remoteproc suspended 0   <- the MODEM's cx proxy: 0
+#
+#   Even at t=15s..90s with remoteproc0 state=running, the modem's CX proxy
+#   device stays "suspended" with performance state 0, so the CX rail never
+#   leaves LOW_SVS (64). Every modem vote returns 0 in the driver log yet the
+#   domain does not move -- consistent with the proxy being asleep for the whole
+#   lifetime.
+#
+# Conclusion / proposed fix (kernel-side, cannot be done from userspace):
+#   Give the CX rail a floor of corner 384 while the modem is up, mirroring
+#   Android's proxy consumer. Cheapest implementation: patch
+#   drivers/pmdomain/qcom/rpmhpd.c to enforce a minimum corner for the cx domain
+#   (module param or DT property), or add rpmh-arc-regulator + proxy-consumer
+#   support and wire it into the modem node. Both require a full kernel rebuild
+#   and a flash.

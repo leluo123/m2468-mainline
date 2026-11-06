@@ -1,0 +1,18 @@
+# UIM provisioning session fix — m2468, 2026-11-05
+# command that works (MUST include aid=, otherwise QMI returns Internal):
+#   qmicli -d qrtr://0 --uim-change-provisioning-session="session-type=primary-gw-provisioning,activate=yes,slot=1,aid=A0000000871002FF86FFFF89FFFFFFFF"
+# observed result:
+[qrtr://0/] Successfully got card status
+Provisioning applications:
+	Primary GW:   slot '1', application '1'
+	Primary 1X:   session doesn't exist
+	Secondary GW: session doesn't exist
+	Secondary 1X: session doesn't exist
+Slot [1]:
+	Card state: 'present'
+	UPIN state: 'not-initialized'
+		UPIN retries: '0'
+		UPUK retries: '0'
+	Application [1]:
+		Application type:  'usim (2)'
+		Application state: 'ready'

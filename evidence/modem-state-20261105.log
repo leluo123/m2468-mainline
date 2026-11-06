@@ -1,0 +1,145 @@
+=== collected_at ===
+Thu Nov  5 05:18:55 GMT 2026
+=== kernel ===
+Linux qcom-qcs6490 7.3.0 #133 SMP PREEMPT Mon Nov  2 17:11:54 CST 2026 aarch64 Linux
+=== uptime ===
+ 05:18:55 up 5 min,  0 users,  load average: 1.39, 0.81, 0.33
+=== remoteproc0_state ===
+running
+=== modem_crash_count ===
+0
+=== modem_last_fatal ===
+=== services ===
+tqftpserv=active
+rmtfs-dir=active
+ModemManager=inactive
+m2468-data=active
+=== serving_system ===
+[qrtr://0/] Successfully got serving system:
+	Registration state: 'not-registered-searching'
+	CS: 'detached'
+	PS: 'detached'
+	Selected network: 'unknown'
+	Radio interfaces: '1'
+		[0]: 'none'
+	Data service capabilities: '0'
+	Detailed status:
+		Status: 'none'
+		Capability: 'none'
+		HDR Status: 'none'
+		HDR Hybrid: 'no'
+		Forbidden: 'no'
+=== dms_band_capabilities ===
+[qrtr://0/] Device band capabilities retrieved:
+	Bands: 'gsm-dcs-1800, gsm-900-extended, gsm-850, wcdma-2100, wcdma-850-us, wcdma-800, wcdma-900'
+	LTE bands: '1, 3, 4, 5, 8, 28, 34, 38, 39, 40, 41'
+	LTE bands (extended): '1, 3, 4, 5, 8, 28, 34, 38, 39, 40, 41'
+	NR5G bands: '1, 3, 5, 8, 28, 38, 40, 41, 77, 78'
+=== uim_card_status ===
+[qrtr://0/] Successfully got card status
+Provisioning applications:
+	Primary GW:   session doesn't exist
+	Primary 1X:   session doesn't exist
+	Secondary GW: session doesn't exist
+	Secondary 1X: session doesn't exist
+Slot [1]:
+	Card state: 'present'
+	UPIN state: 'not-initialized'
+		UPIN retries: '0'
+		UPUK retries: '0'
+	Application [1]:
+		Application type:  'usim (2)'
+		Application state: 'detected'
+		Application ID:
+			A0:00:00:00:87:10:02:FF:86:FF:FF:89:FF:FF:FF:FF
+		Personalization state: 'unknown'
+		UPIN replaces PIN1: 'no'
+		PIN1 state: 'not-initialized'
+			PIN1 retries: '0'
+			PUK1 retries: '0'
+		PIN2 state: 'not-initialized'
+			PIN2 retries: '0'
+			PUK2 retries: '0'
+Slot [2]:
+	Card state: 'error: no-atr-received (3)'
+	UPIN state: 'not-initialized'
+		UPIN retries: '0'
+		UPUK retries: '0'
+=== uim_slot_status ===
+[qrtr://0/] Successfully got slots status
+[qrtr://0/] 2 physical slots found:
+  Physical slot 1:
+     Card status: present
+     Slot status: active
+    Logical slot: 1
+           ICCID: 898600
+        Protocol: uicc
+        Num apps: 0
+        Is eUICC: yes
+             EID: 89049032003008882400000290214339
+  Physical slot 2:
+     Card status: absent
+     Slot status: active
+    Logical slot: 2
+=== pdc_platform ===
+Total configurations: 2
+Configuration 1:
+	Description: rf_static_463_00_00
+	Type:        platform
+	Size:        107184
+	Status:      Inactive
+	Version:     0xA000000
+	ID:          D9:A9:55:74:8A:3B:16:99:48:44:7B:81:68:51:23:4A:88:4E:7F:51
+
+Configuration 2:
+	Description: rf_static_473_00_00
+	Type:        platform
+	Size:        115552
+	Status:      Inactive
+	Version:     0xA000000
+	ID:          46:87:38:F6:38:A4:82:21:8B:3B:17:00:FF:DA:14:3E:26:7C:E4:0D
+
+=== pdc_software ===
+Total configurations: 1
+Configuration 1:
+	Description: Volte_OpenMkt-Commercial-CMCC
+	Type:        software
+	Size:        67212
+	Status:      Active
+	Version:     0xA01202B
+	ID:          D8:77:EF:61:FA:EC:26:45:DD:D3:16:8B:91:38:85:57:CE:57:9E:F1
+
+=== rf_firmware_dir ===
+total 348
+drwxr-xr-x    2 root     root          4096 Nov  5 04:59 .
+drwxr-xr-x    3 root     root          4096 Nov  3 08:05 ..
+-rwxr-xr-x    1 root     root        107184 Nov  3 08:05 rf_static_463_00_00.mbn
+-rwxr-xr-x    1 root     root        115552 Nov  5 04:59 rf_static_464_00_00.mbn
+-rwxr-xr-x    1 root     root        115552 Nov  3 08:05 rf_static_473_00_00.mbn
+=== pm_genpd ===
+mss                             off-0                           0
+    genpd:1:4080000.remoteproc      suspended                   0           SW
+mxc_ao                          off-0                           0
+--
+mx                              off-0                           0
+mmcx_ao                         off-0                           0
+mmcx                            on                              64
+                                                mdss_gdsc, mdss_int2_gdsc
+    af00000.clock-controller        active                      64          SW
+--
+cx_ao                           off-0                           0
+                                                mmcx_ao
+cx                              on                              64
+                                                mmcx
+    898000.serial                   active                      64          SW
+=== nm_connectivity ===
+full
+=== connectivity_conf ===
+[connectivity]
+# 国内可达的联网检测端点；generate_204 返回 204 空响应，所以 response 必须留空
+uri=http://wifi.vivo.com.cn/generate_204
+response=
+interval=60
+=== wlan ===
+wlan0            UP             192.168.137.76/24 fe80::b047:864f:d5c1:1781/64 
+=== END ===

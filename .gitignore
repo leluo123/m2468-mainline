@@ -1,0 +1,10 @@
+*.img
+*.efi
+*.xz
+*.ko
+*.o
+*.dtb
+*.bak_*
+__pycache__/
+*.pyc
+.rl/

@@ -1,0 +1,44 @@
+# Experiment B-1: force the PAS proxy power domains on (m2468, 2026-11-05)
+#
+# Hypothesis: the modem PLL assertion (mcpm_resrc_modem_pll.c:1213,
+# clk_mpss_req_status == CLOCK_SUCCESS) happens because the MSS/CX rails sit at
+# their lowest corner; qcom_q6v5_pas votes INT_MAX but the domain never leaves
+# "off-0". So: resume the domain first, then vote.
+#
+# Patch applied to drivers/remoteproc/qcom_q6v5_pas.c :: qcom_pas_pds_enable():
+#     ret = pm_runtime_resume_and_get(pds[i]);     /* was pm_runtime_get_sync */
+#     ...
+#     ret = dev_pm_genpd_set_performance_state(pds[i], INT_MAX);  /* vote AFTER resume */
+#
+# Result (dmesg, after rmmod + modprobe + starting the modem):
+#   [ 2003.227538] genpd genpd:0:4080000.remoteproc: m2468: pd up suspended=0 vote=0
+#   [ 2003.227658] genpd genpd:1:4080000.remoteproc: m2468: pd up suspended=0 vote=0
+#   [ 2005.988470] genpd genpd:0:4080000.remoteproc: m2468: pd up suspended=0 vote=0
+#   [ 2005.988543] genpd genpd:1:4080000.remoteproc: m2468: pd up suspended=0 vote=0
+#   [ 2008.718401] genpd genpd:0:4080000.remoteproc: m2468: pd up suspended=0 vote=0
+#   [ 2008.718473] genpd genpd:1:4080000.remoteproc: m2468: pd up suspended=0 vote=0
+#
+#   -> resume reports success, device reports suspended=0, vote returns 0
+#
+# But the domain state did NOT change (read right after):
+#   mss                             off-0                           0
+#       genpd:1:4080000.remoteproc      suspended                   0           SW
+#   cx                              on                              64
+#   cx=64 mss=0
+#
+# Side effect: the modem then entered a crash loop.
+#   [ 2022.135003] ... fatal error received: ipa_hwp_init.c:422:IPA Assert: 0 failed:
+#                  ipa_hwp_init_rsp_timer_cb: didnt rx any ind frm HWP
+#   crash count 20 -> after rolling the module back: 44, PLL assertion every ~2.7 s:
+#   [ 2105.456061] ... 2108.087114 (mcpm_resrc_modem_pll.c:1213 ... CLOCK_SUCCESS)
+#   -> recovered only by a full reboot (uptime 9 min, crash count 0, RF down)
+#
+# Conclusion:
+#   1. pm_runtime_resume_and_get() + a post-resume INT_MAX vote does NOT move the
+#      CX/MSS rails on this device. The genpd performance-state path is not a
+#      usable lever for the modem rails here.
+#   2. Forcing the domain up actively destabilises the modem (IPA HWP init fails,
+#      then the PLL assertion loops). Rolled back to the pristine module.
+#   3. The remaining candidate causes for the PLL assertion are inside the modem
+#      firmware's own power-collapse path (MSS_OFFLINE_CLK_CNTRL), not reachable
+#      through genpd.

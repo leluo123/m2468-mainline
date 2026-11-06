@@ -1,0 +1,46 @@
+# Experiment B-3: AOSS power-collapse knobs (m2468, 2026-11-05)
+#
+# Lead: mainline's drivers/soc/qcom/qcom_aoss.c exposes debugfs knobs that tell
+# the AOP/AOSS firmware to stop power collapsing a rail:
+#
+#   drivers/soc/qcom/qcom_aoss.c
+#     { "prevent_aoss_sleep",    "{class: aoss_slp, res: sleep: %s}", true, "enable", "disable" },
+#     { "prevent_cx_collapse",   "{class: cx_mol,   res: cx,   val: %s}", true, "mol", "off" },
+#     { "prevent_ddr_collapse",  "{class: ddr_mol,  res: ddr,  val: %s}", true, "mol", "off" },
+#
+#   Nodes appear at /sys/kernel/debug/qcom_aoss/{prevent_*}.
+#   They are bool (kstrtobool_from_user), so the input is 1/0 -- "mol"/"off" are
+#   the strings the driver sends to AOSS internally. Reading the node returns
+#   EINVAL (write-only).
+#
+# Hypothesis being tested: the modem PLL assertion
+#   (mcpm_resrc_modem_pll.c:1213 clk_mpss_req_status == CLOCK_SUCCESS,
+#    "put offline pll back to run state failed (MSS_OFFLINE_CLK_CNTRL 0xc)")
+#   happens because the CX rail power-collapses while the modem is up. If CX is
+#   held on, the PLL should not have to re-lock.
+#
+# Observed (clean boot, crash count 0, then prevent_cx_collapse=1):
+#   CX collapse 已禁止
+#   基线崩溃=0
+#   qmicli --dms-set-operating-mode=low-power   -> success
+#   qmicli --dms-set-operating-mode=online      -> success
+#   t=7s  Registration state: 'not-registered-searching'  崩溃=1
+#   ... (no registration for the next 98 s, crash count stays 1)
+#
+#   Then four more power-cycle attempts with the knob still on:
+#   --- 尝试 1 ---  not-registered-searching 崩溃=3
+#   --- 尝试 2 ---  not-registered-searching 崩溃=4
+#   --- 尝试 3 ---  not-registered-searching 崩溃=5
+#   --- 尝试 4 ---  not-registered-searching 崩溃=6
+#
+# => With prevent_cx_collapse=1 the DMS power cycle crashed the modem every
+#    single time and the radio never came up at all, whereas without the knob the
+#    cycle does occasionally succeed (RF then lives 30-40 s).
+#
+# Verdict: holding CX on does NOT stop the PLL assertion; it makes the bring-up
+# strictly worse. The knob was turned back to 0 and the modem restarted
+# (state=running, crash count frozen at 6, RF down = stable).
+#
+# Also verified today: /dev/mem reads of the modem DSM region are blocked
+#   ("dd: /dev/mem: Bad address"), so the modem's own QuRT log is not readable
+#   from userspace on this kernel configuration.

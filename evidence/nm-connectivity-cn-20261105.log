@@ -1,0 +1,10 @@
+# NetworkManager connectivity hardcoded to a domestic endpoint — m2468, 2026-11-05
+# earlier defect: system default had response=OK, but generate_204 returns an empty 204 -> NM reported 'portal'
+=== conf ===
+[connectivity]
+# 国内可达的联网检测端点；generate_204 返回 204 空响应，所以 response 必须留空
+uri=http://wifi.vivo.com.cn/generate_204
+response=
+interval=60
+=== nmcli ===
+full

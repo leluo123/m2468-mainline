@@ -1,0 +1,32 @@
+# Experiment D: MX corner floor bricks the boot -- rolled back
+# (m2468, 2026-11-05)
+#
+# Rationale for the attempt:
+#   The Android modem node supplies BOTH rails:
+#     cx-supply = <0x26>; cx-uV-uA = <0x180 0x186a0>;   /* corner 384 TURBO  */
+#     mx-supply = <0x72>; mx-uV-uA = <0x140 0x186a0>;   /* corner 320 NOM_L1 */
+#   Experiment C only floored cx.  mx was still unfloored, so it was the one
+#   rail left untested before concluding that the PLL assertion is not a
+#   voltage-corner problem.
+#
+# Change (kernel built 17:09, Image md5 df822af6209b7b320a9edb9b19b756ff):
+#   rpmhpd_floor_corner() extended to handle "mx" with rpmhpd_mx_min_level = 320
+#   (same max() clamp in rpmhpd_power_on and rpmhpd_set_performance_state).
+#
+# Result: the device never reached userspace.  After flashing the ESP at
+# 17:10:01 the boot hung; the board ended up in fastboot (serial COM16 gone,
+# `fastboot devices` -> <DEVICE-SERIAL>), i.e. the kernel died before switch_root
+# ever produced a serial console session.
+#
+# Rollback: rpmhpd_mx_min_level default set back to 0 (floor disabled for mx),
+# rebuilt (Image md5 86ae41d77b1daf69b121f57b1a80ab36), reflashed at 17:22:23.
+# Boot recovered fully:
+#   ping 192.168.137.76 OK, uname 7.3.0, modem crash count 0
+#   [    9.847223] m2468-poweron cx corner=7 lc=10 ec=2   (cx floor still live)
+#
+# => MX is load-bearing for DDR/LLCC; pinning it at NOM_L1 breaks the platform
+#    before userspace.  Do not floor mx.  cx floor stays (harmless, verified).
+#    The remaining vendor/mainline gaps are driver/DT work, not voltage corners:
+#      * interconnects "crypto_ddr" (mainline qcom_q6v5 has a single icc path)
+#      * hyp_assign_phys() of the mpss_dsm_mem region (vendor-only)
+#      * qcom,signal-aop (vendor-only, no mainline implementation)

@@ -1,0 +1,121 @@
+=== collected_at ===
+Thu Nov  5 05:49:39 GMT 2026
+=== kernel ===
+Linux qcom-qcs6490 7.3.0 #133 SMP PREEMPT Mon Nov  2 17:11:54 CST 2026 aarch64 Linux
+=== uptime ===
+ 05:49:39 up 18 min,  0 users,  load average: 0.01, 0.34, 0.32
+=== remoteproc0_state ===
+running
+=== modem_crash_count ===
+0
+=== modem_last_fatal ===
+=== services ===
+tqftpserv=active
+rmtfs-dir=active
+ModemManager=inactive
+m2468-data=active
+=== serving_system ===
+[qrtr://0/] Successfully got serving system:
+	Registration state: 'not-registered-searching'
+	CS: 'detached'
+	PS: 'detached'
+	Selected network: 'unknown'
+	Radio interfaces: '1'
+		[0]: 'none'
+	Data service capabilities: '0'
+	Detailed status:
+		Status: 'none'
+		Capability: 'none'
+		HDR Status: 'none'
+		HDR Hybrid: 'no'
+		Forbidden: 'no'
+=== dms_band_capabilities ===
+[qrtr://0/] Device band capabilities retrieved:
+	Bands: 'gsm-dcs-1800, gsm-900-extended, gsm-850, wcdma-2100, wcdma-850-us, wcdma-800, wcdma-900'
+	LTE bands: '1, 3, 4, 5, 8, 28, 34, 38, 39, 40, 41'
+	LTE bands (extended): '1, 3, 4, 5, 8, 28, 34, 38, 39, 40, 41'
+	NR5G bands: '1, 3, 5, 8, 28, 38, 40, 41, 77, 78'
+=== uim_card_status ===
+[qrtr://0/] Successfully got card status
+Provisioning applications:
+	Primary GW:   slot '1', application '1'
+	Primary 1X:   session doesn't exist
+	Secondary GW: session doesn't exist
+	Secondary 1X: session doesn't exist
+Slot [1]:
+	Card state: 'present'
+	UPIN state: 'not-initialized'
+		UPIN retries: '0'
+		UPUK retries: '0'
+	Application [1]:
+		Application type:  'usim (2)'
+		Application state: 'ready'
+		Application ID:
+			A0:00:00:00:87:10:02:FF:86:FF:FF:89:FF:FF:FF:FF
+		Personalization state: 'ready'
+		UPIN replaces PIN1: 'no'
+		PIN1 state: 'disabled'
+			PIN1 retries: '3'
+			PUK1 retries: '10'
+		PIN2 state: 'enabled-not-verified'
+			PIN2 retries: '3'
+			PUK2 retries: '10'
+Slot [2]:
+	Card state: 'error: no-atr-received (3)'
+	UPIN state: 'not-initialized'
+		UPIN retries: '0'
+		UPUK retries: '0'
+=== uim_slot_status ===
+[qrtr://0/] Successfully got slots status
+[qrtr://0/] 2 physical slots found:
+  Physical slot 1:
+     Card status: present
+     Slot status: active
+    Logical slot: 1
+           ICCID: 898600
+        Protocol: uicc
+        Num apps: 0
+        Is eUICC: yes
+             EID: 89049032003008882400000290214339
+  Physical slot 2:
+     Card status: absent
+     Slot status: active
+    Logical slot: 2
+=== pdc_platform ===
+Total configurations: 0
+=== pdc_software ===
+Total configurations: 0
+=== rf_firmware_dir ===
+total 348
+drwxr-xr-x    2 root     root          4096 Nov  5 05:47 .
+drwxr-xr-x    3 root     root          4096 Nov  3 08:05 ..
+-rwxr-xr-x    1 root     root        107184 Nov  3 08:05 rf_static_463_00_00.mbn
+-rwxr-xr-x    1 root     root        115552 Nov  5 05:47 rf_static_464_00_00.mbn
+-rwxr-xr-x    1 root     root        115552 Nov  3 08:05 rf_static_473_00_00.mbn
+=== pm_genpd ===
+mss                             off-0                           0
+    genpd:1:4080000.remoteproc      suspended                   0           SW
+mxc_ao                          off-0                           0
+--
+mx                              off-0                           0
+mmcx_ao                         off-0                           0
+mmcx                            on                              64
+                                                mdss_gdsc, mdss_int2_gdsc
+    af00000.clock-controller        active                      64          SW
+--
+cx_ao                           off-0                           0
+                                                mmcx_ao
+cx                              on                              64
+                                                mmcx
+    898000.serial                   active                      64          SW
+=== nm_connectivity ===
+full
+=== connectivity_conf ===
+[connectivity]
+# 国内可达的联网检测端点；generate_204 返回 204 空响应，所以 response 必须留空
+uri=http://wifi.vivo.com.cn/generate_204
+response=
+interval=60
+=== wlan ===
+wlan0            UP             192.168.137.76/24 fe80::b047:864f:d5c1:1781/64 
+=== END ===

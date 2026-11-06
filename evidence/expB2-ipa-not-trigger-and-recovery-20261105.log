@@ -1,0 +1,43 @@
+# Experiment B-2 + device recovery (m2468, 2026-11-05)
+#
+# --- B-2: is the AP-side IPA what forces the modem into power collapse? ---
+# Method: stop m2468-data, rmmod ipa, then DMS power-cycle to bring RF up,
+#         then sample registration + crash count every 40 s.
+#
+#   ipa=0                       (module unloaded)
+#   [qrtr://0/] Operating mode set successfully     (low-power)
+#   [qrtr://0/] Operating mode set successfully     (online)
+#   起始崩溃=3
+#   t=40s  Registration: not-registered-searching  崩溃=4
+#   t=80s  Registration: not-registered-searching  崩溃=4
+#   t=120s Registration: not-registered-searching  崩溃=4
+#   t=160s Registration: not-registered-searching  崩溃=4
+#   t=200s Registration: not-registered-searching  崩溃=4
+#   t=240s Registration: not-registered-searching  崩溃=4
+#
+# => With IPA unloaded the RF still dies within 40 s of coming up (crash 3 -> 4)
+#    and does not recover. So neither data traffic nor the AP-side IPA driver is
+#    the trigger: the PLL assertion is internal to the modem firmware.
+#
+# --- Reference: RF lifetime measurements taken today ---
+#   with the restored EFS: RF up -> crash in ~30-40 s
+#   one earlier sample:    RF up -> crash in ~150 s (1618.7 - ~1470)
+#   each DMS power cycle buys one such window, then RF stays 'none'.
+#
+# --- Device recovery procedure (verified, COM16 back in 55 s) ---
+#   fastboot -s <DEVICE-SERIAL> flash boot_a  MuR16.img
+#   fastboot -s <DEVICE-SERIAL> flash boot_b  MuR16.img
+#   fastboot -s <DEVICE-SERIAL> flash rawdump E73.img        # rawdump == the ESP
+#   fastboot -s <DEVICE-SERIAL> --set-active=a
+#   fastboot -s <DEVICE-SERIAL> reboot
+#   -> /dev/ttyGS0 (COM16) re-enumerates after ~55 s; full boot ~8 min.
+#   Battery at the time: 4423 mV.
+#
+# --- What this rules out for the PLL assertion ---
+#   * genpd CX/MSS performance-state voting (B-1: votes return 0, rails unchanged)
+#   * pm_runtime resume of the proxy domains (B-1: domain still off-0)
+#   * data traffic / IPA (B-2: crashes just the same with ipa unloaded)
+#   * RF card content (463-as-464 and 473-as-464 behave identically)
+#   * EFS state (restored 10-27 image, still crashes)
+#   Remaining: modem firmware power-collapse path itself
+#              (MSS_OFFLINE_CLK_CNTRL, 100 us PLL lock timeout).

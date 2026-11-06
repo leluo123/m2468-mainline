@@ -1,0 +1,43 @@
+# Experiment C: CX corner floor implemented and verified -- hypothesis REFUTED
+# (m2468, 2026-11-05)
+#
+# Implementation (kernel #135 / #136):
+#   drivers/pmdomain/qcom/rpmhpd.c
+#     - new module param  rpmhpd_cx_min_level (default 384 = RPMH_REGULATOR_LEVEL_TURBO)
+#     - rpmhpd_floor_corner(): returns the first level index whose RPMh corner is
+#       >= the floor, for the "cx" domain only
+#     - applied in rpmhpd_power_on()   : corner = max(corner, floor)
+#     - applied in rpmhpd_set_performance_state(): i = max(i, floor)
+#     - pr_info diagnostics on both paths (kernel #136)
+#
+# Flashed as a new ESP (rawdump) on 2026-11-05 16:45; booted kernel #136
+# (7.3.0 #136 SMP PREEMPT Thu Nov 5 16:42:54 CST 2026).
+#
+# Diagnostic output proving the floor is live:
+#   [    9.847676] m2468-poweron cx corner=7 lc=10 ec=2
+#   [    9.847739] m2468-poweron mmcx corner=1 lc=6 ec=1
+#   [    9.983892] m2468-setperf cx i=7 lc=10
+#   ...
+#   => level_count = 10 (cmd-db did provide a level table), enable_corner = 2,
+#      and every cx vote is clamped to index 7 == the first level >= 384 (TURBO).
+#      So the CX rail is now voted at TURBO, not LOW_SVS.
+#
+# Param visibility:
+#   /sys/module/rpmhpd/parameters/cx_min_level = 384
+#
+# Result: the modem still dies with the same assertion.
+#   [  957.574641] qcom_q6v5_pas 4080000.remoteproc: fatal error received:
+#                  mcpm_resrc_modem_pll.c:1213:Assertion clk_mpss_req_status ==
+#                  CLOCK_SUCCESS failed
+#   After the DMS low-power -> online power cycle, crash count went 0 -> 1 and
+#   the radio never came up (sampled every 8 s for 128 s, always
+#   'not-registered-searching').
+#
+# => REFUTED: raising the CX corner to TURBO does not stop the PLL assertion.
+#    CX voltage is not the limiting factor. The remaining vendor/mainline gaps
+#    that could still matter are:
+#      * devm_ioremap_wc() of the MSS register block reg = <0x4080000 0x10000>
+#        (reg-names "cx","mx") -- present in the vendor module, absent in mainline
+#      * qcom,signal-aop (vendor-only, no mainline implementation at all)
+#      * mpss_dsm_mem_reg / setup_mpss_dsm_mem (vendor sets up the modem's DSM region)
+#      * interconnects "rproc_ddr" + "crypto_ddr" (mainline has only the former)

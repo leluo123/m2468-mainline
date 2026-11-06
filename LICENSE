@@ -1,0 +1,52 @@
+# License
+
+本仓库是混合内容，按部分授权：
+
+## 内核部分（`kernel/`、`scripts/`）
+
+与 Linux 内核同源，采用 **GPL-2.0-or-later**。
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    这一程序是自由软件，你可以遵照自由软件基金会出版的 GNU 通用公共许可证
+    条款来修改和重新发布这一程序。或者用许可证的第二版，或者（根据你的选择）
+    用任何更新的版本。
+
+    发布这一程序的目的是希望它有用，但没有任何担保。甚至没有适合特定目的的
+    隐含担保。更详细的情况请参阅 GNU 通用公共许可证。
+
+    你应该已经和程序一起收到一份 GNU 通用公共许可证的副本。如果还没有，
+    写信给：The Free Software Foundation, Inc., 51 Franklin Street,
+    Fifth Floor, Boston, MA 02110-1301, USA
+
+完整文本：https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+
+## 用户态脚本与文档（`userspace/`、`docs/`、`evidence/`、`README.md`）
+
+采用 **MIT**：
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+    THE SOFTWARE.
+
+## 第三方内容
+
+本仓库**不包含**任何高通（Qualcomm）或魅族（Meizu）的专有固件、驱动或校准数据。
+需要这些内容请从你自有的设备上导出。

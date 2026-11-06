@@ -1,0 +1,14 @@
+[Unit]
+Description=m2468 RF keeper (re-arm the modem radio after the firmware PLL assertion)
+After=qrtr-ns.service m2468-data.service
+Wants=qrtr-ns.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /root/rf_keeper.py
+Restart=always
+RestartSec=10
+Nice=5
+
+[Install]
+WantedBy=multi-user.target
